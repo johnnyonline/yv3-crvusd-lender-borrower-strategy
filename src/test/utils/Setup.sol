@@ -4,10 +4,10 @@ pragma solidity ^0.8.18;
 import "forge-std/console2.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
-import {Strategy, ERC20} from "../../Strategy.sol";
+import {CurveLenderBorrowerStrategy as Strategy, ERC20} from "../../Strategy.sol";
 import {StrategyFactory} from "../../StrategyFactory.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
-
+import {IController} from "../../interfaces/IController.sol";
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
 
@@ -26,9 +26,16 @@ contract Setup is ExtendedTest, IEvents {
 
     StrategyFactory public strategyFactory;
 
+    address public borrowToken;
+
+    address public lenderVault = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F;
+
+    address public controllerFactory = 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
+
     mapping(string => address) public tokenAddrs;
 
     // Addresses for different roles we will use repeatedly.
+    address public gov = address(69);
     address public user = address(10);
     address public keeper = address(4);
     address public management = address(1);
@@ -43,8 +50,8 @@ contract Setup is ExtendedTest, IEvents {
     uint256 public MAX_BPS = 10_000;
 
     // Fuzz from $0.01 of 1e6 stable coins up to 1 trillion of a 1e18 coin
-    uint256 public maxFuzzAmount = 1e30;
-    uint256 public minFuzzAmount = 10_000;
+    uint256 public maxFuzzAmount = 100e18;
+    uint256 public minFuzzAmount = 1e18;
 
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
@@ -53,20 +60,18 @@ contract Setup is ExtendedTest, IEvents {
         _setTokenAddrs();
 
         // Set asset
-        asset = ERC20(tokenAddrs["DAI"]);
+        asset = ERC20(tokenAddrs["WETH"]);
 
         // Set decimals
         decimals = asset.decimals();
 
-        strategyFactory = new StrategyFactory(
-            management,
-            performanceFeeRecipient,
-            keeper,
-            emergencyAdmin
-        );
+        strategyFactory =
+            new StrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin, gov, controllerFactory);
 
         // Deploy strategy and set variables
         strategy = IStrategyInterface(setUpStrategy());
+
+        borrowToken = strategy.borrowToken();
 
         factory = strategy.FACTORY();
 
@@ -81,14 +86,8 @@ contract Setup is ExtendedTest, IEvents {
 
     function setUpStrategy() public returns (address) {
         // we save the strategy as a IStrategyInterface to give it the needed interface
-        IStrategyInterface _strategy = IStrategyInterface(
-            address(
-                strategyFactory.newStrategy(
-                    address(asset),
-                    "Tokenized Strategy"
-                )
-            )
-        );
+        IStrategyInterface _strategy =
+            IStrategyInterface(address(strategyFactory.newStrategy(address(asset), lenderVault)));
 
         vm.prank(management);
         _strategy.acceptManagement();
@@ -96,11 +95,7 @@ contract Setup is ExtendedTest, IEvents {
         return address(_strategy);
     }
 
-    function depositIntoStrategy(
-        IStrategyInterface _strategy,
-        address _user,
-        uint256 _amount
-    ) public {
+    function depositIntoStrategy(IStrategyInterface _strategy, address _user, uint256 _amount) public {
         vm.prank(_user);
         asset.approve(address(_strategy), _amount);
 
@@ -108,11 +103,7 @@ contract Setup is ExtendedTest, IEvents {
         _strategy.deposit(_amount, _user);
     }
 
-    function mintAndDepositIntoStrategy(
-        IStrategyInterface _strategy,
-        address _user,
-        uint256 _amount
-    ) public {
+    function mintAndDepositIntoStrategy(IStrategyInterface _strategy, address _user, uint256 _amount) public {
         airdrop(asset, _user, _amount);
         depositIntoStrategy(_strategy, _user, _amount);
     }
@@ -125,9 +116,7 @@ contract Setup is ExtendedTest, IEvents {
         uint256 _totalIdle
     ) public {
         uint256 _assets = _strategy.totalAssets();
-        uint256 _balance = ERC20(_strategy.asset()).balanceOf(
-            address(_strategy)
-        );
+        uint256 _balance = ERC20(_strategy.asset()).balanceOf(address(_strategy));
         uint256 _idle = _balance > _assets ? _assets : _balance;
         uint256 _debt = _assets - _idle;
         assertEq(_assets, _totalAssets, "!totalAssets");
@@ -142,13 +131,13 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     function setFees(uint16 _protocolFee, uint16 _performanceFee) public {
-        address gov = IFactory(factory).governance();
+        address _gov = IFactory(factory).governance();
 
         // Need to make sure there is a protocol fee recipient to set the fee.
-        vm.prank(gov);
-        IFactory(factory).set_protocol_fee_recipient(gov);
+        vm.prank(_gov);
+        IFactory(factory).set_protocol_fee_recipient(_gov);
 
-        vm.prank(gov);
+        vm.prank(_gov);
         IFactory(factory).set_protocol_fee_bps(_protocolFee);
 
         vm.prank(management);
@@ -163,5 +152,28 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["USDT"] = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
         tokenAddrs["DAI"] = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
         tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    }
+
+    function _toUsd(uint256 _amount, address _token) internal view returns (uint256) {
+        if (_amount == 0) return 0;
+        unchecked {
+            return (_amount * _getPrice(_token)) / (uint256(10 ** ERC20(_token).decimals()));
+        }
+    }
+
+    function _fromUsd(uint256 _amount, address _token) internal view returns (uint256) {
+        if (_amount == 0) return 0;
+        unchecked {
+            return (_amount * (uint256(10 ** ERC20(_token).decimals()))) / _getPrice(_token);
+        }
+    }
+
+    function _getPrice(address _asset) internal view returns (uint256 price) {
+        if (_asset == address(asset)) {
+            price = IController(strategy.CONTROLLER()).amm_price() / 1e10;
+        } else {
+            // Assumes crvUSD is 1
+            price = 1e8;
+        }
     }
 }

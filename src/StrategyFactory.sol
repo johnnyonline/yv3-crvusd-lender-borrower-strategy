@@ -53,11 +53,8 @@ contract StrategyFactory {
     function newStrategy(address _asset, address _lenderVault) external virtual returns (address) {
         string memory _name = string.concat(ERC20(_lenderVault).name(), "Lender crvUSD Borrower");
 
-        address _controller = ICurveFactory(CURVE_FACTORY).get_controller(_asset);
-        address _amm = ICurveFactory(CURVE_FACTORY).get_amm(_asset);
         // tokenized strategies available setters.
-        IStrategyInterface _newStrategy =
-            IStrategyInterface(address(new Strategy(_asset, _name, CRV_USD, _lenderVault, GOV, _controller, _amm)));
+        IStrategyInterface _newStrategy = IStrategyInterface(address(new Strategy(_asset, _name, _lenderVault)));
 
         _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
 

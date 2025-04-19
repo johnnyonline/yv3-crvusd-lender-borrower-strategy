@@ -28,14 +28,14 @@ contract Setup is ExtendedTest, IEvents {
 
     address public borrowToken;
 
-    address public lenderVault = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F;
+    address public lenderVault = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F; // yvcrvUSD-2
 
     address public controllerFactory = 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
 
     mapping(string => address) public tokenAddrs;
 
     // Addresses for different roles we will use repeatedly.
-    address public gov = address(69);
+    address public gov;
     address public user = address(10);
     address public keeper = address(4);
     address public management = address(1);
@@ -57,6 +57,9 @@ contract Setup is ExtendedTest, IEvents {
     uint256 public profitMaxUnlockTime = 10 days;
 
     function setUp() public virtual {
+        uint256 _blockNumber = 22_305_807; // Caching for faster tests
+        vm.selectFork(vm.createFork(vm.envString("ETH_RPC_URL"), _blockNumber));
+
         _setTokenAddrs();
 
         // Set asset
@@ -70,6 +73,8 @@ contract Setup is ExtendedTest, IEvents {
 
         // Deploy strategy and set variables
         strategy = IStrategyInterface(setUpStrategy());
+
+        gov = strategy.GOV();
 
         borrowToken = strategy.borrowToken();
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import {IAMM, IController, IControllerFactory} from "./interfaces/IControllerFactory.sol";
+import {IVaultAPROracle} from "./interfaces/IVaultAPROracle.sol";
 
 import {BaseLenderBorrower, ERC20, SafeERC20} from "./BaseLenderBorrower.sol";
 
@@ -11,9 +12,6 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
     // Constants
     // ===============================================================
-
-    /// @notice The governance address
-    address public immutable GOV;
 
     /// @notice The index of the borrowed token in the AMM
     uint256 public immutable CRVUSD_INDEX;
@@ -28,13 +26,26 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     IController public immutable CONTROLLER;
 
     /// @notice The Curve Controller factory contract
-    IControllerFactory public constant CONTROLLER_FACTORY = IControllerFactory(0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC);
+    IControllerFactory public constant CONTROLLER_FACTORY =
+        IControllerFactory(0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC);
+
+    /// @notice The lender vault APR oracle contract
+    IVaultAPROracle public constant VAULT_APR_ORACLE = IVaultAPROracle(0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
+
+    /// @notice The governance address
+    address public constant GOV = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
 
     /// @notice The difference in decimals between the AMM price (1e18) and our price (1e8)
     uint256 private constant DECIMALS_DIFF = 1e10;
 
     /// @notice The number of seconds in a year
     uint256 private constant SECONDS_IN_YEAR = 365 days;
+
+    /// @notice The number of bands for the loan
+    uint256 private constant BANDS = 10;
+
+    /// @notice The maximum active band when repaying
+    int256 private constant MAX_ACTIVE_BAND = 2 ** 255 - 1;
 
     // ===============================================================
     // Constructor
@@ -44,14 +55,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @param _asset The strategy's asset
     /// @param _name The strategy's name
     /// @param _lenderVault The address of the lender vault
-    /// @param _gov The governance address
-    constructor(
-        address _asset,
-        string memory _name,
-        address _lenderVault,
-        address _gov
-    ) BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault) {
-        GOV = _gov;
+    constructor(address _asset, string memory _name, address _lenderVault)
+        BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault)
+    {
         AMM = CONTROLLER_FACTORY.get_amm(_asset);
         CONTROLLER = CONTROLLER_FACTORY.get_controller(_asset);
 
@@ -73,23 +79,38 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @inheritdoc BaseLenderBorrower
     function _supplyCollateral(uint256 _amount) internal override {
         !CONTROLLER.loan_exists(address(this))
-            ? CONTROLLER.create_loan(_amount, 1, 10)
+            ? CONTROLLER.create_loan(
+                _amount,
+                1, // 1 wei of debt
+                BANDS
+            )
             : CONTROLLER.add_collateral(_amount);
     }
 
     /// @inheritdoc BaseLenderBorrower
     function _withdrawCollateral(uint256 _amount) internal override {
-        CONTROLLER.remove_collateral(_amount, false);
+        CONTROLLER.remove_collateral(
+            _amount,
+            false // use_eth
+        );
     }
 
     /// @inheritdoc BaseLenderBorrower
     function _borrow(uint256 _amount) internal override {
-        CONTROLLER.borrow_more(0, _amount);
+        CONTROLLER.borrow_more(
+            0, // collateral
+            _amount
+        );
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _repay(uint256 amount) internal override {
-        CONTROLLER.repay(amount, address(this), 2 ** 255 - 1, false);
+    function _repay(uint256 _amount) internal override {
+        CONTROLLER.repay(
+            _amount,
+            address(this),
+            MAX_ACTIVE_BAND,
+            false // use_eth
+        );
     }
 
     // ===============================================================
@@ -113,7 +134,10 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @inheritdoc BaseLenderBorrower
     function _isLiquidatable() internal view override returns (bool) {
-        return CONTROLLER.health(address(this), true) < 0;
+        return CONTROLLER.health(
+            address(this),
+            true // with price difference above the highest band
+        ) < 0;
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -127,14 +151,13 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function getNetBorrowApr(uint256 /* _newAmount */) public view override returns (uint256) {
+    function getNetBorrowApr(uint256 /* _newAmount */ ) public view override returns (uint256) {
         return AMM.rate() * SECONDS_IN_YEAR; // Since we're not duming, rate will not necessarily change
     }
 
-    // @todo
     /// @inheritdoc BaseLenderBorrower
-    function getNetRewardApr(uint256 /* _newAmount */) public pure override returns (uint256) {
-        return 10;
+    function getNetRewardApr(uint256 _newAmount) public view override returns (uint256) {
+        return VAULT_APR_ORACLE.getExpectedApr(address(lenderVault), int256(_newAmount));
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -152,7 +175,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         return CONTROLLER.debt(address(this));
     }
 
-    /// ----------------- HARVEST / TOKEN CONVERSIONS ----------------- \\
+    // ===============================================================
+    // Harvest / Token conversions
+    // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
     function _claimRewards() internal pure override {

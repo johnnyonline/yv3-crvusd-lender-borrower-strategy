@@ -36,11 +36,7 @@ contract ShutdownTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount, user, user);
 
-        assertGe(
-            asset.balanceOf(user),
-            balanceBefore + _amount,
-            "!final balance"
-        );
+        assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
     function test_emergencyWithdraw_maxUint(uint256 _amount) public {
@@ -138,11 +134,7 @@ contract ShutdownTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount / 2, user, user);
 
-        assertRelApproxEq(
-            asset.balanceOf(user),
-            balanceBefore + (_amount / 2),
-            10
-        );
+        assertRelApproxEq(asset.balanceOf(user), balanceBefore + (_amount / 2), 10);
     }
 
     function test_sweep(uint256 _amount) public {
@@ -166,11 +158,7 @@ contract ShutdownTest is Setup {
         vm.prank(gov);
         strategy.sweep(borrowToken);
 
-        assertEq(
-            ERC20(borrowToken).balanceOf(gov),
-            beforeBalance + _amount,
-            "base swept"
-        );
+        assertEq(ERC20(borrowToken).balanceOf(gov), beforeBalance + _amount, "base swept");
 
         // Cant sweep asset
         vm.expectRevert("!asset");

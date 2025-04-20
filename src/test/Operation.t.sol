@@ -22,7 +22,10 @@ contract OperationTest is Setup {
         assertEq(strategy.CRVUSD_INDEX(), 0);
         assertEq(strategy.ASSET_INDEX(), 1);
         assertEq(strategy.AMM(), address(IControllerFactory(strategy.CONTROLLER_FACTORY()).get_amm(address(asset))));
-        assertEq(strategy.CONTROLLER(), address(IControllerFactory(strategy.CONTROLLER_FACTORY()).get_controller(address(asset))));
+        assertEq(
+            strategy.CONTROLLER(),
+            address(IControllerFactory(strategy.CONTROLLER_FACTORY()).get_controller(address(asset)))
+        );
         assertEq(strategy.CONTROLLER_FACTORY(), 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC);
         assertEq(strategy.VAULT_APR_ORACLE(), 0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
         assertEq(strategy.GOV(), gov);
@@ -34,8 +37,7 @@ contract OperationTest is Setup {
     function test_operation(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -43,11 +45,7 @@ contract OperationTest is Setup {
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
         assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
-        assertApproxEq(
-            strategy.balanceOfDebt(),
-            strategy.balanceOfLentAssets(),
-            3
-        );
+        assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
         // Earn Interest
         skip(1 days);
 
@@ -65,18 +63,13 @@ contract OperationTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount, user, user);
 
-        assertGe(
-            asset.balanceOf(user),
-            balanceBefore + _amount,
-            "!final balance"
-        );
+        assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
     function test_profitableReport(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -103,18 +96,13 @@ contract OperationTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount, user, user);
 
-        assertGe(
-            asset.balanceOf(user),
-            balanceBefore + _amount,
-            "!final balance"
-        );
+        assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
     function test_profitableReport_withFees(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Set protocol fee to 0 and perf fee to 10%
         setFees(0, 1_000);
@@ -150,31 +138,18 @@ contract OperationTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount, user, user);
 
-        assertGe(
-            asset.balanceOf(user),
-            balanceBefore + _amount,
-            "!final balance"
-        );
+        assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
 
         vm.prank(performanceFeeRecipient);
-        strategy.redeem(
-            expectedShares,
-            performanceFeeRecipient,
-            performanceFeeRecipient
-        );
+        strategy.redeem(expectedShares, performanceFeeRecipient, performanceFeeRecipient);
 
-        assertGe(
-            asset.balanceOf(performanceFeeRecipient),
-            expectedShares,
-            "!perf fee out"
-        );
+        assertGe(asset.balanceOf(performanceFeeRecipient), expectedShares, "!perf fee out");
     }
 
     function test_manualRepayDebt(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -182,11 +157,7 @@ contract OperationTest is Setup {
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
         assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
-        assertApproxEq(
-            strategy.balanceOfDebt(),
-            strategy.balanceOfLentAssets(),
-            3
-        );
+        assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
         skip(1 days);
@@ -215,18 +186,13 @@ contract OperationTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount, user, user);
 
-        assertGe(
-            asset.balanceOf(user),
-            balanceBefore,
-            "!final balance"
-        );
+        assertGe(asset.balanceOf(user), balanceBefore, "!final balance");
     }
 
     function test_partialWithdraw_lowerLTV(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -234,11 +200,7 @@ contract OperationTest is Setup {
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
         assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
-        assertApproxEq(
-            strategy.balanceOfDebt(),
-            strategy.balanceOfLentAssets(),
-            3
-        );
+        assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
         skip(1 days);
@@ -258,11 +220,7 @@ contract OperationTest is Setup {
         vm.prank(user);
         strategy.redeem(_amount / 2, user, user, 1);
 
-        assertGe(
-            asset.balanceOf(user),
-            ((balanceBefore + (_amount / 2)) * 9_999) / MAX_BPS,
-            "!final balance"
-        );
+        assertGe(asset.balanceOf(user), ((balanceBefore + (_amount / 2)) * 9_999) / MAX_BPS, "!final balance");
     }
 
     function test_leaveDebtBehind_realizesLoss(uint256 _amount) public {
@@ -272,8 +230,7 @@ contract OperationTest is Setup {
         strategy.setLeaveDebtBehind(true);
         vm.stopPrank();
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -281,11 +238,7 @@ contract OperationTest is Setup {
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
         assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
-        assertApproxEq(
-            strategy.balanceOfDebt(),
-            strategy.balanceOfLentAssets(),
-            3
-        );
+        assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Pay without earning
         skip(30 days);
@@ -304,11 +257,7 @@ contract OperationTest is Setup {
         strategy.redeem(_amount, user, user);
 
         // We should not have got the full amount out.
-        assertLt(
-            asset.balanceOf(user),
-            balanceBefore + _amount,
-            "!final balance"
-        );
+        assertLt(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
 
         // make sure there's still debt
         assertGt(strategy.balanceOfDebt(), 0, "!debt");
@@ -318,8 +267,7 @@ contract OperationTest is Setup {
     function test_dontLeaveDebtBehind_realizesLoss(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -327,11 +275,7 @@ contract OperationTest is Setup {
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
         assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
-        assertApproxEq(
-            strategy.balanceOfDebt(),
-            strategy.balanceOfLentAssets(),
-            3
-        );
+        assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
         skip(1 days);
@@ -345,10 +289,7 @@ contract OperationTest is Setup {
 
         // lose some lent
         vm.startPrank(address(strategy));
-        ERC20(lenderVault).transfer(
-            address(420),
-            ERC20(lenderVault).balanceOf(address(strategy)) * 10 / 100
-        );
+        ERC20(lenderVault).transfer(address(420), ERC20(lenderVault).balanceOf(address(strategy)) * 10 / 100);
         vm.stopPrank();
 
         vm.startPrank(emergencyAdmin);
@@ -356,11 +297,7 @@ contract OperationTest is Setup {
         strategy.buyBorrowToken(type(uint256).max); // sell all loose collateral
         vm.stopPrank();
 
-        assertGe(
-            strategy.balanceOfLentAssets() + strategy.balanceOfBorrowToken(),
-            strategy.balanceOfDebt(),
-            "!lent"
-        );
+        assertGe(strategy.balanceOfLentAssets() + strategy.balanceOfBorrowToken(), strategy.balanceOfDebt(), "!lent");
 
         uint256 balanceBefore = asset.balanceOf(user);
 
@@ -369,11 +306,7 @@ contract OperationTest is Setup {
         strategy.redeem(_amount, user, user);
 
         // We should not have got the full amount out.
-        assertLt(
-            asset.balanceOf(user),
-            balanceBefore + _amount,
-            "!final balance"
-        );
+        assertLt(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
 
         // make sure there's no debt
         assertEq(strategy.balanceOfDebt(), 0, "!debt");
@@ -410,36 +343,33 @@ contract OperationTest is Setup {
     function test_tendTrigger(uint256 _amount) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() *
-            strategy.targetLTVMultiplier()) / MAX_BPS;
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
 
-        (bool trigger, ) = strategy.tendTrigger();
+        (bool trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
 
         // Skip some time
         skip(1 days);
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
 
         // Borrow too much.
-        uint256 toBorrow = (strategy.balanceOfCollateral() *
-            ((strategy.getLiquidateCollateralFactor() *
-                (strategy.warningLTVMultiplier() + 100)) / MAX_BPS)) / 1e18;
+        uint256 toBorrow = (
+            strategy.balanceOfCollateral()
+                * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 100)) / MAX_BPS)
+        ) / 1e18;
 
         toBorrow = _fromUsd(_toUsd(toBorrow, address(asset)), borrowToken);
 
         vm.startPrank(address(strategy));
-        IController(strategy.CONTROLLER()).borrow_more(
-            0,
-            toBorrow - strategy.balanceOfDebt()
-        );
+        IController(strategy.CONTROLLER()).borrow_more(0, toBorrow - strategy.balanceOfDebt());
         vm.stopPrank();
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(trigger, "warning ltv");
 
         // Even with a 0 for max Tend Base Fee its true
@@ -447,7 +377,7 @@ contract OperationTest is Setup {
         strategy.setMaxGasPriceToTend(0);
         vm.stopPrank();
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(trigger, "warning ltv 2");
 
         // Even with a 0 for max Tend Base Fee its true
@@ -458,7 +388,7 @@ contract OperationTest is Setup {
         vm.prank(keeper);
         strategy.tend();
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger, "post tend");
 
         vm.prank(keeper);
@@ -473,19 +403,19 @@ contract OperationTest is Setup {
 
         assertLt(strategy.getCurrentLTV(), targetLTV);
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(trigger);
 
         vm.prank(keeper);
         strategy.tend();
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger, "post tend");
 
         vm.prank(user);
         strategy.redeem(_amount, user, user);
 
-        (trigger, ) = strategy.tendTrigger();
+        (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
     }
 }

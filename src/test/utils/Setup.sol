@@ -2,10 +2,10 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
+import "../../../script/Deploy.s.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
 import {CurveLenderBorrowerStrategy as Strategy, ERC20} from "../../Strategy.sol";
-import {StrategyFactory} from "../../StrategyFactory.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
 import {IController} from "../../interfaces/IController.sol";
 // Inherit the events so they can be checked if desired.
@@ -19,12 +19,10 @@ interface IFactory {
     function set_protocol_fee_recipient(address) external;
 }
 
-contract Setup is ExtendedTest, IEvents {
+contract Setup is Deploy, ExtendedTest, IEvents {
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
     IStrategyInterface public strategy;
-
-    StrategyFactory public strategyFactory;
 
     address public borrowToken;
 
@@ -68,8 +66,13 @@ contract Setup is ExtendedTest, IEvents {
         // Set decimals
         decimals = asset.decimals();
 
-        strategyFactory =
-            new StrategyFactory(management, performanceFeeRecipient, keeper, emergencyAdmin, gov, controllerFactory);
+        // Set script vars
+        s_asset = address(asset);
+        s_lenderVault = lenderVault;
+        s_management = management;
+        s_performanceFeeRecipient = performanceFeeRecipient;
+        s_keeper = keeper;
+        s_emergencyAdmin = emergencyAdmin;
 
         // Deploy strategy and set variables
         strategy = IStrategyInterface(setUpStrategy());
@@ -90,9 +93,12 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     function setUpStrategy() public returns (address) {
+        // notify deplyment script that this is a test
+        isTest = true;
+        // deploy and initialize contracts
+        run();
         // we save the strategy as a IStrategyInterface to give it the needed interface
-        IStrategyInterface _strategy =
-            IStrategyInterface(address(strategyFactory.newStrategy(address(asset), lenderVault)));
+        IStrategyInterface _strategy = s_newStrategy;
 
         vm.prank(management);
         _strategy.acceptManagement();

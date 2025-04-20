@@ -21,6 +21,11 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 18
+      
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
       - name: Set yarn cache directory path
         id: yarn-cache-dir-path
@@ -39,11 +44,8 @@ jobs:
       - name: Install node.js dependencies
         run: yarn --frozen-lockfile
 
-      - name: Run formater check on *.sol and *.json
-        run: yarn format:check
-
-      - name: run linter check on *.sol file
-        run: yarn lint
+      - name: check forge format
+        run: forge fmt --check
 
     commits:
       runs-on: ubuntu-latest

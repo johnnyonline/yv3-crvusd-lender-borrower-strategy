@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.18;
+pragma solidity 0.8.23;
 
 import {IAMM, IController, IControllerFactory} from "./interfaces/IControllerFactory.sol";
 import {IVaultAPROracle} from "./interfaces/IVaultAPROracle.sol";

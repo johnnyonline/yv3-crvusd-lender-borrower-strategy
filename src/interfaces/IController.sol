@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.18;
+pragma solidity 0.8.23;
 
 interface IController {
     function create_loan(uint256 collateral, uint256 _debt, uint256 _n) external;

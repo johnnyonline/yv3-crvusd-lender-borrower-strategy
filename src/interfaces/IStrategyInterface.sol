@@ -13,4 +13,5 @@ interface IStrategyInterface is IStrategy, ILenderBorrower {
     function VAULT_APR_ORACLE() external view returns (address);
     function GOV() external view returns (address);
     function sweep(address _token) external;
+    function buyBorrowToken(uint256 _amount) external;
 }

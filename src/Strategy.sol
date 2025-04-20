@@ -64,8 +64,8 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         CRVUSD_INDEX = AMM.coins(0) == _asset ? 1 : 0;
         ASSET_INDEX = CRVUSD_INDEX == 1 ? 0 : 1;
 
-        // @todo -- approve asset to amm too?
         asset.forceApprove(address(CONTROLLER), type(uint256).max);
+        asset.forceApprove(address(AMM), type(uint256).max);
 
         ERC20 _borrowToken = ERC20(CONTROLLER_FACTORY.stablecoin());
         _borrowToken.forceApprove(address(CONTROLLER), type(uint256).max);
@@ -73,7 +73,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     // ===============================================================
-    // Internal write functions
+    // Write functions
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
@@ -114,7 +114,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     // ===============================================================
-    // Internal view functions
+    // View functions
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
@@ -200,13 +200,21 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _buyBorrowToken() internal virtual override {
-        AMM.exchange(ASSET_INDEX, CRVUSD_INDEX, borrowTokenOwedBalance(), 0);
+    function _sellBorrowToken(uint256 _amount) internal virtual override {
+        AMM.exchange(CRVUSD_INDEX, ASSET_INDEX, _amount, 0);
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _sellBorrowToken(uint256 _amount) internal virtual override {
-        AMM.exchange(CRVUSD_INDEX, ASSET_INDEX, _amount, 0);
+    function _buyBorrowToken() internal virtual override {
+        uint256 _borrowTokenStillOwed = borrowTokenOwedBalance();
+        uint256 _maxAssetBalance = _fromUsd(_toUsd(_borrowTokenStillOwed, borrowToken), address(asset));
+        _buyBorrowToken(_maxAssetBalance);
+    }
+
+    /// @notice Buy borrow token
+    /// @param _amount The amount of asset to sale
+    function _buyBorrowToken(uint256 _amount) internal {
+        AMM.exchange(ASSET_INDEX, CRVUSD_INDEX, _amount, 0);
     }
 
     /// @notice Sweep of non-asset ERC20 tokens to governance
@@ -215,5 +223,13 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         require(msg.sender == GOV, "!gov");
         require(_token != asset, "!asset");
         _token.safeTransfer(GOV, _token.balanceOf(address(this)));
+    }
+
+    /// @notice Manually buy borrow token
+    /// @dev Potentially can never reach `_buyBorrowToken()` in `_liquidatePosition()`
+    ///      because of lender vault accounting (i.e. `balanceOfLentAssets() == 0` is never true)
+    function buyBorrowToken(uint256 _amount) external onlyEmergencyAuthorized {
+        if (_amount == type(uint256).max) _amount = balanceOfAsset();
+        _buyBorrowToken(_amount);
     }
 }

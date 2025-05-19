@@ -67,7 +67,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         asset.forceApprove(address(CONTROLLER), type(uint256).max);
         asset.forceApprove(address(AMM), type(uint256).max);
 
-        ERC20 _borrowToken = ERC20(CONTROLLER_FACTORY.stablecoin());
+        ERC20 _borrowToken = ERC20(borrowToken);
         _borrowToken.forceApprove(address(CONTROLLER), type(uint256).max);
         _borrowToken.forceApprove(address(AMM), type(uint256).max);
     }

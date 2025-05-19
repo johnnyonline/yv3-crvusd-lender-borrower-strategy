@@ -10,6 +10,13 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     using SafeERC20 for ERC20;
 
     // ===============================================================
+    // Storage
+    // ===============================================================
+
+    /// @notice Indicates if a loan was created or should be created
+    bool public loanExists;
+
+    // ===============================================================
     // Constants
     // ===============================================================
 
@@ -73,18 +80,22 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     // ===============================================================
+    // Management functions
+    // ===============================================================
+
+    /// @notice Set the loanExists flag to false
+    function resetLoanExists() external onlyManagement {
+        require(loanExists && !CONTROLLER.loan_exists(address(this)), "!exists");
+        loanExists = false;
+    }
+
+    // ===============================================================
     // Write functions
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
     function _supplyCollateral(uint256 _amount) internal override {
-        !CONTROLLER.loan_exists(address(this))
-            ? CONTROLLER.create_loan(
-                _amount,
-                1, // 1 wei of debt
-                BANDS
-            )
-            : CONTROLLER.add_collateral(_amount);
+        loanExists ? CONTROLLER.add_collateral(_amount) : _createLoan(_amount);
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -110,6 +121,17 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
             address(this),
             MAX_ACTIVE_BAND,
             false // use_eth
+        );
+    }
+
+    /// @notice Create a loan and set the loanExists flag to true
+    /// @param _amount The amount of asset to supply
+    function _createLoan(uint256 _amount) internal {
+        loanExists = true;
+        CONTROLLER.create_loan(
+            _amount,
+            1, // 1 wei of debt
+            BANDS
         );
     }
 

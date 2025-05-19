@@ -2,6 +2,7 @@ pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
 import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
+import {IController} from "../interfaces/IController.sol";
 
 contract ShutdownTest is Setup {
     function setUp() public virtual override {
@@ -115,6 +116,8 @@ contract ShutdownTest is Setup {
         vm.prank(management);
         strategy.manualRepayDebt();
 
+        assertFalse(IController(strategy.CONTROLLER()).loan_exists(address(strategy)));
+        assertEq(strategy.balanceOfCollateral(), 0);
         assertEq(strategy.balanceOfLentAssets(), 0);
         assertEq(ERC20(borrowToken).balanceOf(address(strategy)), 0);
         assertEq(strategy.getCurrentLTV(), 0);
@@ -125,7 +128,15 @@ contract ShutdownTest is Setup {
         vm.stopPrank();
 
         vm.prank(management);
+        strategy.resetLoanExists();
+        assertFalse(strategy.loanExists());
+
+        vm.prank(management);
         strategy.tend();
+
+        // Make sure we were able to create a new loan after closing it
+        assertTrue(IController(strategy.CONTROLLER()).loan_exists(address(strategy)));
+        assertGt(strategy.balanceOfCollateral(), 0);
 
         // Make sure we can still withdraw the full amount
         uint256 balanceBefore = asset.balanceOf(user);

@@ -30,6 +30,7 @@ contract OperationTest is Setup {
         assertEq(strategy.VAULT_APR_ORACLE(), 0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
         assertEq(strategy.GOV(), gov);
         assertEq(strategy.getLiquidateCollateralFactor(), 0.9e18);
+        assertFalse(strategy.loanExists());
         console2.log("borrow APR:", strategy.getNetBorrowApr(0));
         console2.log("reward APR:", strategy.getNetRewardApr(0));
     }
@@ -417,5 +418,21 @@ contract OperationTest is Setup {
 
         (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
+    }
+
+    function test_resetLoanExists(uint256 _amount) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertTrue(strategy.loanExists());
+
+        vm.expectRevert("!exists");
+        vm.prank(management);
+        strategy.resetLoanExists();
+
+        vm.expectRevert("!management");
+        strategy.resetLoanExists();
     }
 }

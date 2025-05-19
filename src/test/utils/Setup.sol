@@ -12,14 +12,21 @@ import {IController} from "../../interfaces/IController.sol";
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
 
 interface IFactory {
+
     function governance() external view returns (address);
 
-    function set_protocol_fee_bps(uint16) external;
+    function set_protocol_fee_bps(
+        uint16
+    ) external;
 
-    function set_protocol_fee_recipient(address) external;
+    function set_protocol_fee_recipient(
+        address
+    ) external;
+
 }
 
 contract Setup is Deploy, ExtendedTest, IEvents {
+
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
     IStrategyInterface public strategy;
@@ -179,7 +186,9 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         }
     }
 
-    function _getPrice(address _asset) internal view returns (uint256 price) {
+    function _getPrice(
+        address _asset
+    ) internal view returns (uint256 price) {
         if (_asset == address(asset)) {
             price = IController(strategy.CONTROLLER()).amm_price() / 1e10;
         } else {
@@ -187,4 +196,5 @@ contract Setup is Deploy, ExtendedTest, IEvents {
             price = 1e8;
         }
     }
+
 }

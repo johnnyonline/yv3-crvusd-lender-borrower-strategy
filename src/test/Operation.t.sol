@@ -8,6 +8,7 @@ import {IController, IControllerFactory} from "../interfaces/IControllerFactory.
 import {ILenderBorrower} from "../interfaces/ILenderBorrower.sol";
 
 contract OperationTest is Setup {
+
     function setUp() public virtual override {
         super.setUp();
     }
@@ -35,7 +36,9 @@ contract OperationTest is Setup {
         console2.log("reward APR:", strategy.getNetRewardApr(0));
     }
 
-    function test_operation(uint256 _amount) public {
+    function test_operation(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -67,7 +70,9 @@ contract OperationTest is Setup {
         assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
-    function test_profitableReport(uint256 _amount) public {
+    function test_profitableReport(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -100,7 +105,9 @@ contract OperationTest is Setup {
         assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
-    function test_profitableReport_withFees(uint256 _amount) public {
+    function test_profitableReport_withFees(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -147,7 +154,9 @@ contract OperationTest is Setup {
         assertGe(asset.balanceOf(performanceFeeRecipient), expectedShares, "!perf fee out");
     }
 
-    function test_manualRepayDebt(uint256 _amount) public {
+    function test_manualRepayDebt(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -190,7 +199,9 @@ contract OperationTest is Setup {
         assertGe(asset.balanceOf(user), balanceBefore, "!final balance");
     }
 
-    function test_partialWithdraw_lowerLTV(uint256 _amount) public {
+    function test_partialWithdraw_lowerLTV(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -224,7 +235,9 @@ contract OperationTest is Setup {
         assertGe(asset.balanceOf(user), ((balanceBefore + (_amount / 2)) * 9_999) / MAX_BPS, "!final balance");
     }
 
-    function test_leaveDebtBehind_realizesLoss(uint256 _amount) public {
+    function test_leaveDebtBehind_realizesLoss(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         vm.startPrank(management);
@@ -265,7 +278,9 @@ contract OperationTest is Setup {
         assertGt(strategy.balanceOfCollateral(), 0, "!collateral");
     }
 
-    function test_dontLeaveDebtBehind_realizesLoss(uint256 _amount) public {
+    function test_dontLeaveDebtBehind_realizesLoss(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -314,7 +329,9 @@ contract OperationTest is Setup {
         assertEq(strategy.balanceOfCollateral(), 0, "!collateral");
     }
 
-    function test_operation_overWarningLTV_depositLeversDown(uint256 _amount) public {
+    function test_operation_overWarningLTV_depositLeversDown(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -341,7 +358,9 @@ contract OperationTest is Setup {
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
     }
 
-    function test_tendTrigger(uint256 _amount) public {
+    function test_tendTrigger(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
@@ -420,7 +439,9 @@ contract OperationTest is Setup {
         assertTrue(!trigger);
     }
 
-    function test_resetLoanExists(uint256 _amount) public {
+    function test_resetLoanExists(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         // Deposit into strategy
@@ -435,4 +456,5 @@ contract OperationTest is Setup {
         vm.expectRevert("!management");
         strategy.resetLoanExists();
     }
+
 }

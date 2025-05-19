@@ -5,11 +5,14 @@ import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
 import {IController} from "../interfaces/IController.sol";
 
 contract ShutdownTest is Setup {
+
     function setUp() public virtual override {
         super.setUp();
     }
 
-    function test_shutdownCanWithdraw(uint256 _amount) public {
+    function test_shutdownCanWithdraw(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         // Deposit into strategy
@@ -40,7 +43,9 @@ contract ShutdownTest is Setup {
         assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
-    function test_emergencyWithdraw_maxUint(uint256 _amount) public {
+    function test_emergencyWithdraw_maxUint(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         // Deposit into strategy
@@ -71,7 +76,9 @@ contract ShutdownTest is Setup {
         assertGe(asset.balanceOf(user), balanceBefore + _amount, "!final balance");
     }
 
-    function test_manualWithdraw_noShutdown(uint256 _amount) public {
+    function test_manualWithdraw_noShutdown(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         // Deposit into strategy
@@ -148,7 +155,9 @@ contract ShutdownTest is Setup {
         assertRelApproxEq(asset.balanceOf(user), balanceBefore + (_amount / 2), 10);
     }
 
-    function test_sweep(uint256 _amount) public {
+    function test_sweep(
+        uint256 _amount
+    ) public {
         address gov = strategy.GOV();
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
@@ -178,4 +187,5 @@ contract ShutdownTest is Setup {
     }
 
     // TODO: Add tests for any emergency function added.
+
 }

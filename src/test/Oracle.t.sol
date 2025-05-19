@@ -6,6 +6,7 @@ import {Setup} from "./utils/Setup.sol";
 import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 
 contract OracleTest is Setup {
+
     StrategyAprOracle public oracle;
 
     function setUp() public override {
@@ -60,4 +61,5 @@ contract OracleTest is Setup {
     }
 
     // TODO: Deploy multiple strategies with different tokens as `asset` to test against the oracle.
+
 }

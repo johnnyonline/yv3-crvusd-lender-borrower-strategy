@@ -12,6 +12,7 @@ import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
 // forge script script/Deploy.s.sol:Deploy --verify --slow --legacy --etherscan-api-key $KEY --rpc-url $RPC_URL --broadcast
 
 contract Deploy is Script {
+
     bool public isTest;
     address public s_asset;
     address public s_lenderVault;
@@ -41,4 +42,5 @@ contract Deploy is Script {
 
         if (!isTest) console.log("Strategy address: %s", address(s_newStrategy));
     }
+
 }

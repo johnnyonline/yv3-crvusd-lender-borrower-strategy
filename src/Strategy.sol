@@ -7,6 +7,7 @@ import {IVaultAPROracle} from "./interfaces/IVaultAPROracle.sol";
 import {BaseLenderBorrower, ERC20, SafeERC20} from "./BaseLenderBorrower.sol";
 
 contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
+
     using SafeERC20 for ERC20;
 
     // ===============================================================
@@ -62,9 +63,11 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @param _asset The strategy's asset
     /// @param _name The strategy's name
     /// @param _lenderVault The address of the lender vault
-    constructor(address _asset, string memory _name, address _lenderVault)
-        BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault)
-    {
+    constructor(
+        address _asset,
+        string memory _name,
+        address _lenderVault
+    ) BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault) {
         AMM = CONTROLLER_FACTORY.get_amm(_asset);
         CONTROLLER = CONTROLLER_FACTORY.get_controller(_asset);
 
@@ -94,12 +97,16 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
-    function _supplyCollateral(uint256 _amount) internal override {
+    function _supplyCollateral(
+        uint256 _amount
+    ) internal override {
         loanExists ? CONTROLLER.add_collateral(_amount) : _createLoan(_amount);
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _withdrawCollateral(uint256 _amount) internal override {
+    function _withdrawCollateral(
+        uint256 _amount
+    ) internal override {
         CONTROLLER.remove_collateral(
             _amount,
             false // use_eth
@@ -107,7 +114,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _borrow(uint256 _amount) internal override {
+    function _borrow(
+        uint256 _amount
+    ) internal override {
         CONTROLLER.borrow_more(
             0, // collateral
             _amount
@@ -115,7 +124,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _repay(uint256 _amount) internal override {
+    function _repay(
+        uint256 _amount
+    ) internal override {
         CONTROLLER.repay(
             _amount,
             address(this),
@@ -126,7 +137,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @notice Create a loan and set the loanExists flag to true
     /// @param _amount The amount of asset to supply
-    function _createLoan(uint256 _amount) internal {
+    function _createLoan(
+        uint256 _amount
+    ) internal {
         loanExists = true;
         CONTROLLER.create_loan(
             _amount,
@@ -140,7 +153,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
-    function _getPrice(address _asset) internal view override returns (uint256) {
+    function _getPrice(
+        address _asset
+    ) internal view override returns (uint256) {
         return _asset == borrowToken ? WAD / DECIMALS_DIFF : CONTROLLER.amm_price() / DECIMALS_DIFF;
     }
 
@@ -173,12 +188,16 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function getNetBorrowApr(uint256 /* _newAmount */ ) public view override returns (uint256) {
+    function getNetBorrowApr(
+        uint256 /* _newAmount */
+    ) public view override returns (uint256) {
         return AMM.rate() * SECONDS_IN_YEAR; // Since we're not duming, rate will not necessarily change
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function getNetRewardApr(uint256 _newAmount) public view override returns (uint256) {
+    function getNetRewardApr(
+        uint256 _newAmount
+    ) public view override returns (uint256) {
         return VAULT_APR_ORACLE.getExpectedApr(address(lenderVault), int256(_newAmount));
     }
 
@@ -222,7 +241,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _sellBorrowToken(uint256 _amount) internal virtual override {
+    function _sellBorrowToken(
+        uint256 _amount
+    ) internal virtual override {
         AMM.exchange(CRVUSD_INDEX, ASSET_INDEX, _amount, 0);
     }
 
@@ -235,13 +256,17 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @notice Buy borrow token
     /// @param _amount The amount of asset to sale
-    function _buyBorrowToken(uint256 _amount) internal {
+    function _buyBorrowToken(
+        uint256 _amount
+    ) internal {
         AMM.exchange(ASSET_INDEX, CRVUSD_INDEX, _amount, 0);
     }
 
     /// @notice Sweep of non-asset ERC20 tokens to governance
     /// @param _token The ERC20 token to sweep
-    function sweep(ERC20 _token) external {
+    function sweep(
+        ERC20 _token
+    ) external {
         require(msg.sender == GOV, "!gov");
         require(_token != asset, "!asset");
         _token.safeTransfer(GOV, _token.balanceOf(address(this)));
@@ -250,8 +275,11 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @notice Manually buy borrow token
     /// @dev Potentially can never reach `_buyBorrowToken()` in `_liquidatePosition()`
     ///      because of lender vault accounting (i.e. `balanceOfLentAssets() == 0` is never true)
-    function buyBorrowToken(uint256 _amount) external onlyEmergencyAuthorized {
+    function buyBorrowToken(
+        uint256 _amount
+    ) external onlyEmergencyAuthorized {
         if (_amount == type(uint256).max) _amount = balanceOfAsset();
         _buyBorrowToken(_amount);
     }
+
 }

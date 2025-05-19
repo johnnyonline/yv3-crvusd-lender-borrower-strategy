@@ -4,6 +4,12 @@ out = 'out'
 libs = ['lib']
 solc = "0.8.23"
 
+[fmt]
+single_line_statement_blocks = "single"
+multiline_func_header = "params_first"
+contract_new_lines = true
+number_underscore = "preserve"
+
 remappings = [
     "@openzeppelin/=lib/openzeppelin-contracts/",
     "forge-std/=lib/forge-std/src/",

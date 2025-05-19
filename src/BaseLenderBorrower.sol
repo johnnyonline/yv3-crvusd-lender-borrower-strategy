@@ -11,6 +11,7 @@ import {BaseHealthCheck, ERC20} from "@periphery/Bases/HealthCheck/BaseHealthChe
  * @title Base Lender Borrower
  */
 abstract contract BaseLenderBorrower is BaseHealthCheck {
+
     using SafeERC20 for ERC20;
 
     uint256 internal constant WAD = 1e18;
@@ -51,9 +52,12 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param _name The name of the strategy.
      * @param _borrowToken The address of the borrow token.
      */
-    constructor(address _asset, string memory _name, address _borrowToken, address _lenderVault)
-        BaseHealthCheck(_asset, _name)
-    {
+    constructor(
+        address _asset,
+        string memory _name,
+        address _borrowToken,
+        address _lenderVault
+    ) BaseHealthCheck(_asset, _name) {
         borrowToken = _borrowToken;
 
         // Set default variables
@@ -78,7 +82,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Set the deposit limit for the strategy
      * @param _depositLimit New deposit limit
      */
-    function setDepositLimit(uint256 _depositLimit) external onlyManagement {
+    function setDepositLimit(
+        uint256 _depositLimit
+    ) external onlyManagement {
         depositLimit = _depositLimit;
     }
 
@@ -101,7 +107,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Set whether to leave debt behind
      * @param _leaveDebtBehind New leave debt behind setting
      */
-    function setLeaveDebtBehind(bool _leaveDebtBehind) external onlyManagement {
+    function setLeaveDebtBehind(
+        bool _leaveDebtBehind
+    ) external onlyManagement {
         leaveDebtBehind = _leaveDebtBehind;
     }
 
@@ -109,7 +117,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Set the maximum gas price for tending
      * @param _maxGasPriceToTend New maximum gas price
      */
-    function setMaxGasPriceToTend(uint256 _maxGasPriceToTend) external onlyManagement {
+    function setMaxGasPriceToTend(
+        uint256 _maxGasPriceToTend
+    ) external onlyManagement {
         maxGasPriceToTend = _maxGasPriceToTend;
     }
 
@@ -117,7 +127,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Set the slippage tolerance
      * @param _slippage New slippage tolerance in basis points
      */
-    function setSlippage(uint256 _slippage) external onlyManagement {
+    function setSlippage(
+        uint256 _slippage
+    ) external onlyManagement {
         require(_slippage < MAX_BPS, "slippage");
         slippage = uint64(_slippage);
     }
@@ -137,7 +149,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param _amount The amount of 'asset' that the strategy should attempt
      * to deposit in the yield source.
      */
-    function _deployFunds(uint256 _amount) internal virtual override {
+    function _deployFunds(
+        uint256 _amount
+    ) internal virtual override {
         _leveragePosition(_amount);
     }
 
@@ -162,7 +176,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      *
      * @param _amount, The amount of 'asset' to be freed.
      */
-    function _freeFunds(uint256 _amount) internal virtual override {
+    function _freeFunds(
+        uint256 _amount
+    ) internal virtual override {
         _liquidatePosition(_amount);
     }
 
@@ -227,7 +243,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      *
      * @param _totalIdle The current amount of idle funds that are available to deploy.
      */
-    function _tend(uint256 _totalIdle) internal virtual override {
+    function _tend(
+        uint256 _totalIdle
+    ) internal virtual override {
         /// If the cost to borrow > rewards rate we will pull out all funds to not report a loss
         if (getNetBorrowApr(0) > getNetRewardApr(0)) {
             /// Liquidate everything so not to report a loss
@@ -260,9 +278,7 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
         uint256 currentLTV = collateralInUsd > 0 ? (debtInUsd * WAD) / collateralInUsd : 0;
 
         /// Check if we are over our warning LTV
-        if (currentLTV > _getWarningLTV()) {
-            return true;
-        }
+        if (currentLTV > _getWarningLTV()) return true;
 
         if (_isSupplyPaused() || _isBorrowPaused()) return false;
 
@@ -321,7 +337,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param . The address that is depositing into the strategy.
      * @return . The available amount the `_owner` can deposit in terms of `asset`
      */
-    function availableDepositLimit(address /*_owner*/ ) public view virtual override returns (uint256) {
+    function availableDepositLimit(
+        address /*_owner*/
+    ) public view virtual override returns (uint256) {
         /// We need to be able to both supply and withdraw on deposits.
         if (_isSupplyPaused() || _isBorrowPaused()) return 0;
 
@@ -353,7 +371,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param . The address that is withdrawing from the strategy.
      * @return . The available amount that can be withdrawn in terms of `asset`
      */
-    function availableWithdrawLimit(address /*_owner*/ ) public view virtual override returns (uint256) {
+    function availableWithdrawLimit(
+        address /*_owner*/
+    ) public view virtual override returns (uint256) {
         /// Default liquidity is the balance of collateral + 1 for rounding.
         uint256 liquidity = balanceOfCollateral() + 1;
         uint256 lenderLiquidity = _lenderMaxWithdraw();
@@ -376,7 +396,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @dev All debt and collateral calculations are done in USD terms. LTV values are represented in 1e18 format.
      * @param _amount The amount to be supplied to adjust the leverage position,
      */
-    function _leveragePosition(uint256 _amount) internal virtual {
+    function _leveragePosition(
+        uint256 _amount
+    ) internal virtual {
         /// Supply the given amount to the strategy.
         // This function internally checks for zero amounts.
         _supplyCollateral(_amount);
@@ -417,9 +439,7 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
             }
 
             /// Need to have at least the min threshold
-            if (amountToBorrowBT > minAmountToBorrow) {
-                _borrow(amountToBorrowBT);
-            }
+            if (amountToBorrowBT > minAmountToBorrow) _borrow(amountToBorrowBT);
         } else if (currentLTV > _getWarningLTV()) {
             /// UNHEALTHY RATIO
             /// we repay debt to set it to targetLTV
@@ -434,9 +454,7 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
 
         // Deposit any loose base token that was borrowed.
         uint256 borrowTokenBalance = balanceOfBorrowToken();
-        if (borrowTokenBalance > 0) {
-            _lendBorrowToken(borrowTokenBalance);
-        }
+        if (borrowTokenBalance > 0) _lendBorrowToken(borrowTokenBalance);
     }
 
     /**
@@ -444,7 +462,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @dev All debt, collateral, and needed amounts are calculated in USD. The needed amount is represented in the asset.
      * @param _needed The amount required in the asset.
      */
-    function _liquidatePosition(uint256 _needed) internal virtual {
+    function _liquidatePosition(
+        uint256 _needed
+    ) internal virtual {
         /// Cache balance for withdraw checks
         uint256 balance = balanceOfAsset();
 
@@ -500,9 +520,7 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
         uint256 neededCollateral = _fromUsd((debtInUsd * WAD) / _getTargetLTV(), address(asset));
 
         /// We need more collateral so we cant withdraw anything
-        if (neededCollateral > collateral) {
-            return 0;
-        }
+        if (neededCollateral > collateral) return 0;
 
         /// Return the difference in terms of asset
         unchecked {
@@ -516,7 +534,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param amount The withdrawal amount
      * @return The amount of debt to repay
      */
-    function _calculateAmountToRepay(uint256 amount) internal view virtual returns (uint256) {
+    function _calculateAmountToRepay(
+        uint256 amount
+    ) internal view virtual returns (uint256) {
         if (amount == 0) return 0;
         uint256 collateral = balanceOfCollateral();
         /// To unlock all collateral we must repay all the debt
@@ -545,7 +565,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Withdraws a specified amount of `borrowToken` from the lender.
      * @param amount The amount of the borrowToken to withdraw.
      */
-    function _withdrawFromLender(uint256 amount) internal virtual {
+    function _withdrawFromLender(
+        uint256 amount
+    ) internal virtual {
         uint256 balancePrior = balanceOfBorrowToken();
         /// Only withdraw what we don't already have free
         amount = balancePrior >= amount ? 0 : amount - balancePrior;
@@ -564,31 +586,41 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Supplies a specified amount of `asset` as collateral.
      * @param amount The amount of the asset to supply.
      */
-    function _supplyCollateral(uint256 amount) internal virtual;
+    function _supplyCollateral(
+        uint256 amount
+    ) internal virtual;
 
     /**
      * @notice Withdraws a specified amount of collateral.
      * @param amount The amount of the collateral to withdraw.
      */
-    function _withdrawCollateral(uint256 amount) internal virtual;
+    function _withdrawCollateral(
+        uint256 amount
+    ) internal virtual;
 
     /**
      * @notice Borrows a specified amount of `borrowToken`.
      * @param amount The amount of the borrowToken to borrow.
      */
-    function _borrow(uint256 amount) internal virtual;
+    function _borrow(
+        uint256 amount
+    ) internal virtual;
 
     /**
      * @notice Repays a specified amount of `borrowToken`.
      * @param amount The amount of the borrowToken to repay.
      */
-    function _repay(uint256 amount) internal virtual;
+    function _repay(
+        uint256 amount
+    ) internal virtual;
 
     /**
      * @notice Lends a specified amount of `borrowToken`.
      * @param amount The amount of the borrowToken to lend.
      */
-    function _lendBorrowToken(uint256 amount) internal virtual {
+    function _lendBorrowToken(
+        uint256 amount
+    ) internal virtual {
         lenderVault.deposit(amount, address(this));
     }
 
@@ -596,7 +628,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @notice Withdraws a specified amount of `borrowToken`.
      * @param amount The amount of the borrowToken to withdraw.
      */
-    function _withdrawBorrowToken(uint256 amount) internal virtual {
+    function _withdrawBorrowToken(
+        uint256 amount
+    ) internal virtual {
         // Use previewWithdraw to round up.
         uint256 shares = Math.min(lenderVault.previewWithdraw(amount), lenderVault.balanceOf(address(this)));
         lenderVault.redeem(shares, address(this), address(this));
@@ -609,7 +643,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param _asset The asset address
      * @return price asset price
      */
-    function _getPrice(address _asset) internal view virtual returns (uint256 price);
+    function _getPrice(
+        address _asset
+    ) internal view virtual returns (uint256 price);
 
     /**
      * @notice Checks if lending or borrowing is paused
@@ -662,14 +698,18 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      * @param newAmount Simulated supply amount
      * @return Net borrow APR
      */
-    function getNetBorrowApr(uint256 newAmount) public view virtual returns (uint256);
+    function getNetBorrowApr(
+        uint256 newAmount
+    ) public view virtual returns (uint256);
 
     /**
      * @notice Gets net reward APR from depositor
      * @param newAmount Simulated supply amount
      * @return Net reward APR
      */
-    function getNetRewardApr(uint256 newAmount) public view virtual returns (uint256);
+    function getNetRewardApr(
+        uint256 newAmount
+    ) public view virtual returns (uint256);
 
     /**
      * @notice Gets liquidation collateral factor for asset
@@ -736,9 +776,7 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
     function _borrowTokenOwedInAsset() internal view virtual returns (uint256 owed) {
         /// Don't do conversions unless it's a non-zero false.
         uint256 owedInBase = borrowTokenOwedBalance();
-        if (owedInBase != 0) {
-            owed = _fromUsd(_toUsd(owedInBase, borrowToken), address(asset));
-        }
+        if (owedInBase != 0) owed = _fromUsd(_toUsd(owedInBase, borrowToken), address(asset));
     }
 
     /**
@@ -830,7 +868,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
     /**
      * @dev Will swap from the base token => underlying asset.
      */
-    function _sellBorrowToken(uint256 _amount) internal virtual;
+    function _sellBorrowToken(
+        uint256 _amount
+    ) internal virtual;
 
     /**
      * @notice Estimates swap output accounting for slippage
@@ -874,10 +914,10 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
      *
      * @param _amount The amount of asset to attempt to free.
      */
-    function _emergencyWithdraw(uint256 _amount) internal virtual override {
-        if (_amount > 0) {
-            _withdrawBorrowToken(Math.min(_amount, _lenderMaxWithdraw()));
-        }
+    function _emergencyWithdraw(
+        uint256 _amount
+    ) internal virtual override {
+        if (_amount > 0) _withdrawBorrowToken(Math.min(_amount, _lenderMaxWithdraw()));
 
         // Repay everything we can.
         _repayTokenDebt();
@@ -894,7 +934,9 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
     /// @notice Sell a specific amount of `borrowToken` -> asset.
     ///     The amount of borrowToken should be loose in the strategy before this is called
     ///     max uint input will sell any excess borrowToken we have.
-    function sellBorrowToken(uint256 _amount) external virtual onlyEmergencyAuthorized {
+    function sellBorrowToken(
+        uint256 _amount
+    ) external virtual onlyEmergencyAuthorized {
         if (_amount == type(uint256).max) {
             uint256 _balanceOfBorrowToken = balanceOfBorrowToken();
             _amount = Math.min(balanceOfLentAssets() + _balanceOfBorrowToken - balanceOfDebt(), _balanceOfBorrowToken);
@@ -904,15 +946,13 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
 
     /// @notice Withdraw a specific amount of `_token`
     function manualWithdraw(address _token, uint256 _amount) external virtual onlyEmergencyAuthorized {
-        if (_token == borrowToken) {
-            _withdrawBorrowToken(_amount);
-        } else {
-            _withdrawCollateral(_amount);
-        }
+        if (_token == borrowToken) _withdrawBorrowToken(_amount);
+        else _withdrawCollateral(_amount);
     }
 
     // Manually repay debt with loose borrowToken already in the strategy.
     function manualRepayDebt() external virtual onlyEmergencyAuthorized {
         _repayTokenDebt();
     }
+
 }

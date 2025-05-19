@@ -5,6 +5,7 @@ import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 import {ILenderBorrower} from "./ILenderBorrower.sol";
 
 interface IStrategyInterface is IStrategy, ILenderBorrower {
+
     function loanExists() external view returns (bool);
     function CRVUSD_INDEX() external view returns (uint256);
     function ASSET_INDEX() external view returns (uint256);
@@ -14,6 +15,11 @@ interface IStrategyInterface is IStrategy, ILenderBorrower {
     function VAULT_APR_ORACLE() external view returns (address);
     function GOV() external view returns (address);
     function resetLoanExists() external;
-    function sweep(address _token) external;
-    function buyBorrowToken(uint256 _amount) external;
+    function sweep(
+        address _token
+    ) external;
+    function buyBorrowToken(
+        uint256 _amount
+    ) external;
+
 }

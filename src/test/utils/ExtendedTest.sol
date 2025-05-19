@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 import {Test} from "forge-std/Test.sol";
 
 contract ExtendedTest is Test {
+
     // solhint-disable-next-line
     function assertNeq(address a, address b) internal {
         if (a == b) {
@@ -70,4 +71,5 @@ contract ExtendedTest is Test {
             }
         }
     }
+
 }

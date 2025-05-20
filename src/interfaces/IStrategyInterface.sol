@@ -7,6 +7,7 @@ import {ILenderBorrower} from "./ILenderBorrower.sol";
 interface IStrategyInterface is IStrategy, ILenderBorrower {
 
     function loanExists() external view returns (bool);
+    function forceLeverage() external view returns (bool);
     function CRVUSD_INDEX() external view returns (uint256);
     function ASSET_INDEX() external view returns (uint256);
     function AMM() external view returns (address);
@@ -15,6 +16,9 @@ interface IStrategyInterface is IStrategy, ILenderBorrower {
     function VAULT_APR_ORACLE() external view returns (address);
     function GOV() external view returns (address);
     function resetLoanExists() external;
+    function setForceLeverage(
+        bool _forceLeverage
+    ) external;
     function sweep(
         address _token
     ) external;

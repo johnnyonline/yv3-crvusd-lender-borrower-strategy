@@ -6,6 +6,7 @@ import {IBaseStrategy} from "@tokenized-strategy/interfaces/IBaseStrategy.sol";
 import {Setup, ERC20} from "./utils/Setup.sol";
 import {IController, IControllerFactory} from "../interfaces/IControllerFactory.sol";
 import {ILenderBorrower} from "../interfaces/ILenderBorrower.sol";
+import {IVaultAPROracle} from "../interfaces/IVaultAPROracle.sol";
 
 contract OperationTest is Setup {
 
@@ -437,6 +438,43 @@ contract OperationTest is Setup {
 
         (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
+    }
+
+    function test_tendTrigger_noRewards(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        (bool trigger,) = strategy.tendTrigger();
+        assertTrue(!trigger);
+
+        // (almost) zero out rewards
+        vm.mockCall(
+            address(strategy.VAULT_APR_ORACLE()),
+            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encode(1)
+        );
+        assertEq(strategy.getNetRewardApr(0), 1);
+
+        // Now that it's unprofitable to borrow, we should tend
+        (trigger,) = strategy.tendTrigger();
+        assertTrue(trigger);
+
+        vm.prank(management);
+        strategy.setForceLeverage(true);
+
+        assertTrue(strategy.forceLeverage());
+        assertEq(strategy.getNetBorrowApr(0), 0);
+
+        // Now that we force leverage, we should not tend
+        (trigger,) = strategy.tendTrigger();
+        assertTrue(!trigger);
+
+        vm.expectRevert("!management");
+        strategy.setForceLeverage(false);
     }
 
     function test_resetLoanExists(

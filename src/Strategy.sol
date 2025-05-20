@@ -17,6 +17,10 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @notice Indicates if a loan was created or should be created
     bool public loanExists;
 
+    /// @notice If true, `getNetBorrowApr()` will return 0,
+    ///         which means we'll always consider it profitable to borrow
+    bool public forceLeverage;
+
     // ===============================================================
     // Constants
     // ===============================================================
@@ -90,6 +94,14 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function resetLoanExists() external onlyManagement {
         require(loanExists && !CONTROLLER.loan_exists(address(this)), "!exists");
         loanExists = false;
+    }
+
+    /// @notice Set the forceLeverage flag
+    /// @param _forceLeverage The new value for the forceLeverage flag
+    function setForceLeverage(
+        bool _forceLeverage
+    ) external onlyManagement {
+        forceLeverage = _forceLeverage;
     }
 
     // ===============================================================
@@ -191,7 +203,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function getNetBorrowApr(
         uint256 /* _newAmount */
     ) public view override returns (uint256) {
-        return AMM.rate() * SECONDS_IN_YEAR; // Since we're not duming, rate will not necessarily change
+        return forceLeverage ? 0 : AMM.rate() * SECONDS_IN_YEAR; // Since we're not duming, rate will not necessarily change
     }
 
     /// @inheritdoc BaseLenderBorrower

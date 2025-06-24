@@ -31,7 +31,8 @@ contract OperationTest is Setup {
         assertEq(strategy.CONTROLLER_FACTORY(), 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC);
         assertEq(strategy.VAULT_APR_ORACLE(), 0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
         assertEq(strategy.GOV(), gov);
-        assertEq(strategy.getLiquidateCollateralFactor(), 0.9e18);
+        console2.log("getLiquidateCollateralFactor: ", strategy.getLiquidateCollateralFactor());
+        assertEq(strategy.getLiquidateCollateralFactor(), 0.89e18);
         assertFalse(strategy.loanExists());
         console2.log("borrow APR:", strategy.getNetBorrowApr(0));
         console2.log("reward APR:", strategy.getNetRewardApr(0));

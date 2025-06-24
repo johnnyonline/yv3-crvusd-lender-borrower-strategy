@@ -4,6 +4,7 @@ pragma solidity 0.8.23;
 interface IAMM {
 
     function rate() external view returns (uint256);
+    function A() external view returns (uint256);
     function coins(
         uint256 i
     ) external view returns (address);

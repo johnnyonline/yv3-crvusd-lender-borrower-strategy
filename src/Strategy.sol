@@ -25,6 +25,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // Constants
     // ===============================================================
 
+    /// @notice The amplification, the measure of how concentrated the tick is
+    uint256 public immutable A;
+
     /// @notice The index of the borrowed token in the AMM
     uint256 public immutable CRVUSD_INDEX;
 
@@ -54,7 +57,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     uint256 private constant SECONDS_IN_YEAR = 365 days;
 
     /// @notice The number of bands for the loan
-    uint256 private constant BANDS = 10;
+    uint256 private constant BANDS = 4;
 
     /// @notice The maximum active band when repaying
     int256 private constant MAX_ACTIVE_BAND = 2 ** 255 - 1;
@@ -74,6 +77,8 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     ) BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault) {
         AMM = CONTROLLER_FACTORY.get_amm(_asset);
         CONTROLLER = CONTROLLER_FACTORY.get_controller(_asset);
+
+        A = AMM.A();
 
         CRVUSD_INDEX = AMM.coins(0) == _asset ? 1 : 0;
         ASSET_INDEX = CRVUSD_INDEX == 1 ? 0 : 1;
@@ -215,7 +220,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @inheritdoc BaseLenderBorrower
     function getLiquidateCollateralFactor() public view override returns (uint256) {
-        return CONTROLLER.loan_discount() * 10;
+        return (WAD - CONTROLLER.loan_discount()) - ((BANDS * WAD) / (2 * A));
     }
 
     /// @inheritdoc BaseLenderBorrower

@@ -191,7 +191,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         return CONTROLLER.health(
             address(this),
             true // with price difference above the highest band
-        ) < 0;
+        ) <= 0;
     }
 
     /// @inheritdoc BaseLenderBorrower

@@ -25,14 +25,29 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // Constants
     // ===============================================================
 
-    /// @notice The amplification, the measure of how concentrated the tick is
-    uint256 public immutable A;
-
     /// @notice The index of the borrowed token in the AMM
     uint256 public immutable CRVUSD_INDEX;
 
     /// @notice The index of the asset in the AMM
     uint256 public immutable ASSET_INDEX;
+
+    /// @notice The amplification, the measure of how concentrated the tick is
+    uint256 public immutable A;
+
+    /// @notice The number of bands for the loan
+    uint256 public constant BANDS = 4;
+
+    /// @notice The maximum active band when repaying
+    int256 private constant MAX_ACTIVE_BAND = 2 ** 255 - 1;
+
+    /// @notice The difference in decimals between the AMM price (1e18) and our price (1e8)
+    uint256 private constant DECIMALS_DIFF = 1e10;
+
+    /// @notice The number of seconds in a year
+    uint256 private constant SECONDS_IN_YEAR = 365 days;
+
+    /// @notice The governance address
+    address public constant GOV = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
 
     /// @notice The AMM contract
     IAMM public immutable AMM;
@@ -46,21 +61,6 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @notice The lender vault APR oracle contract
     IVaultAPROracle public constant VAULT_APR_ORACLE = IVaultAPROracle(0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
-
-    /// @notice The governance address
-    address public constant GOV = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
-
-    /// @notice The difference in decimals between the AMM price (1e18) and our price (1e8)
-    uint256 private constant DECIMALS_DIFF = 1e10;
-
-    /// @notice The number of seconds in a year
-    uint256 private constant SECONDS_IN_YEAR = 365 days;
-
-    /// @notice The number of bands for the loan
-    uint256 private constant BANDS = 4;
-
-    /// @notice The maximum active band when repaying
-    int256 private constant MAX_ACTIVE_BAND = 2 ** 255 - 1;
 
     // ===============================================================
     // Constructor

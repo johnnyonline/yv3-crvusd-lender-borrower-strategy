@@ -206,7 +206,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @inheritdoc BaseLenderBorrower
     function getNetBorrowApr(
-        uint256 /* _newAmount */
+        uint256 /*_newAmount*/
     ) public view override returns (uint256) {
         return forceLeverage ? 0 : AMM.rate() * SECONDS_IN_YEAR; // Since we're not duming, rate will not necessarily change
     }

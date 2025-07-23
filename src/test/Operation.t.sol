@@ -496,4 +496,26 @@ contract OperationTest is Setup {
         strategy.resetLoanExists();
     }
 
+    function test_resetLoanExists_onFullRepayment(uint256 _amount) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check that the loan exists
+        assertTrue(strategy.loanExists());
+
+        // Airdrop so we can repay full debt
+        uint256 borrowed = strategy.balanceOfDebt();
+        airdrop(ERC20(borrowToken), address(strategy), borrowed / 4);
+
+        // Withdraw lent assets and full repay debt
+        vm.startPrank(management);
+        strategy.manualWithdraw(borrowToken, type(uint256).max);
+        strategy.manualRepayDebt();
+        vm.stopPrank();
+
+        // Check that the loan no longer exists and we reset the flag
+        assertFalse(strategy.loanExists());
+    }
 }

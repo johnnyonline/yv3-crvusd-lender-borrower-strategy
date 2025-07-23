@@ -128,15 +128,12 @@ contract ShutdownTest is Setup {
         assertEq(strategy.balanceOfLentAssets(), 0);
         assertEq(ERC20(borrowToken).balanceOf(address(strategy)), 0);
         assertEq(strategy.getCurrentLTV(), 0);
+        assertFalse(strategy.loanExists());
 
         // Set the LTV to 1 so it doesn't lever up
         vm.startPrank(management);
         strategy.setLtvMultipliers(1, strategy.warningLTVMultiplier());
         vm.stopPrank();
-
-        vm.prank(management);
-        strategy.resetLoanExists();
-        assertFalse(strategy.loanExists());
 
         vm.prank(management);
         strategy.tend();

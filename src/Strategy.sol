@@ -150,6 +150,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
             MAX_ACTIVE_BAND,
             false // use_eth
         );
+
+        // If the loan was fully repaid, set the flag to false
+        if (!CONTROLLER.loan_exists(address(this))) loanExists = false;
     }
 
     /// @notice Create a loan and set the loanExists flag to true

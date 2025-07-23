@@ -157,6 +157,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function _createLoan(
         uint256 _amount
     ) internal {
+        if (_amount == 0) return;
         loanExists = true;
         CONTROLLER.create_loan(
             _amount,

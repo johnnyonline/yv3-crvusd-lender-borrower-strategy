@@ -496,7 +496,9 @@ contract OperationTest is Setup {
         strategy.resetLoanExists();
     }
 
-    function test_resetLoanExists_onFullRepayment(uint256 _amount) public {
+    function test_resetLoanExists_onFullRepayment(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
         // Deposit into strategy
@@ -518,4 +520,5 @@ contract OperationTest is Setup {
         // Check that the loan no longer exists and we reset the flag
         assertFalse(strategy.loanExists());
     }
+
 }

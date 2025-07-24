@@ -521,4 +521,72 @@ contract OperationTest is Setup {
         assertFalse(strategy.loanExists());
     }
 
+    function test_closePositionFully_andOpenAgain(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        checkStrategyTotals(strategy, _amount, _amount, 0);
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
+
+        // Earn Interest
+        skip(1 days);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGe(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        // (almost) zero out rewards
+        vm.mockCall(
+            address(strategy.VAULT_APR_ORACLE()),
+            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encode(1)
+        );
+        assertEq(strategy.getNetRewardApr(0), 1);
+
+        // Now that it's unprofitable to borrow, we should tend to close the position
+        (bool trigger,) = strategy.tendTrigger();
+        assertTrue(trigger);
+
+        // Airdrop dust so we can repay full debt
+        airdrop(ERC20(borrowToken), address(strategy), 5);
+
+        // Close the position
+        vm.prank(management);
+        strategy.tend();
+
+        // Make sure the position is closed
+        assertFalse(strategy.loanExists());
+
+        // Pump rewards
+        vm.mockCall(
+            address(strategy.VAULT_APR_ORACLE()),
+            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encode(100e18)
+        );
+        assertEq(strategy.getNetRewardApr(0), 100e18);
+
+        // Even though now it's profitable to borrow, tend trigger can't identify that
+        (trigger,) = strategy.tendTrigger();
+        assertFalse(trigger);
+
+        // So report will lever back up
+        vm.prank(keeper);
+        strategy.report();
+
+        // Make sure the position was reopened
+        assertTrue(strategy.loanExists());
+    }
+
 }

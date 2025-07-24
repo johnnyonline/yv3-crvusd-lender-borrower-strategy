@@ -192,10 +192,11 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @inheritdoc BaseLenderBorrower
     function _isLiquidatable() internal view override returns (bool) {
-        return CONTROLLER.health(
-            address(this),
-            true // with price difference above the highest band
-        ) <= 0;
+        return CONTROLLER.loan_exists(address(this))
+            && CONTROLLER.health(
+                address(this),
+                true // with price difference above the highest band
+            ) <= 0;
     }
 
     /// @inheritdoc BaseLenderBorrower

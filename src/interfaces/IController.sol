@@ -23,5 +23,6 @@ interface IController {
         address user
     ) external view returns (bool);
     function loan_discount() external view returns (uint256);
+    function collect_fees() external returns (uint256);
 
 }

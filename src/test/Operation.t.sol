@@ -713,4 +713,22 @@ contract OperationTest is Setup {
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
     }
 
+    function test_rateForTapir(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Update fee to latest
+        IController(strategy.CONTROLLER()).collect_fees();
+
+        // Cache borrow rate before deposit
+        uint256 borrowRateBefore = strategy.getNetBorrowApr(0);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check that the borrow rate did not change after deposit
+        assertEq(strategy.getNetBorrowApr(0), borrowRateBefore);
+    }
+
 }

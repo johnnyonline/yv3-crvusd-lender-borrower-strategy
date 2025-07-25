@@ -276,7 +276,6 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
         uint256 collateralInUsd = _toUsd(balanceOfCollateral(), address(asset));
         uint256 debtInUsd = _toUsd(balanceOfDebt(), borrowToken);
         uint256 currentLTV = collateralInUsd > 0 ? (debtInUsd * WAD) / collateralInUsd : 0;
-        console2.log("currentLTV: ", currentLTV);
 
         /// Check if we are over our warning LTV
         if (currentLTV > _getWarningLTV()) return true;
@@ -284,7 +283,6 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
         if (_isSupplyPaused() || _isBorrowPaused()) return false;
 
         uint256 targetLTV = _getTargetLTV();
-        console2.log("targetLTV: ", targetLTV);
 
         /// If we are still levered and Borrowing costs are too high.
         if (currentLTV != 0 && getNetBorrowApr(0) > getNetRewardApr(0)) {

@@ -8,6 +8,7 @@ import {ExtendedTest} from "./ExtendedTest.sol";
 import {CurveLenderBorrowerStrategy as Strategy, ERC20} from "../../Strategy.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
 import {IController} from "../../interfaces/IController.sol";
+import {IAMM, IPriceOracle} from "../../interfaces/IAMM.sol";
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
 
@@ -170,6 +171,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         tokenAddrs["USDT"] = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
         tokenAddrs["DAI"] = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
         tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        tokenAddrs["crvUSD"] = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
     }
 
     function _toUsd(uint256 _amount, address _token) internal view returns (uint256) {
@@ -195,6 +197,83 @@ contract Setup is Deploy, ExtendedTest, IEvents {
             // Assumes crvUSD is 1
             price = 1e8;
         }
+    }
+
+    function simulateSoftLiquidation(
+        bool nuke
+    ) public {
+        // Cache the AMM instance
+        IAMM amm = IAMM(strategy.AMM());
+
+        // Drop price by 25% -- not necessary but makes the scenario a bit more realistic
+        if (nuke) nukePrice();
+
+        // Read bands
+        int256[2] memory userTicks = amm.read_user_tick_numbers(address(strategy));
+        int256 activeBand = amm.active_band();
+
+        // Get collateral amount sitting between our band and the active one
+        uint256 totalCollateralToBuy = 0;
+        for (int256 band = activeBand; band <= userTicks[0]; band++) {
+            totalCollateralToBuy += amm.bands_y(band);
+        }
+
+        // Get amount of crvUSD we need to clear out the collateral
+        uint256 dx = amm.get_dx(0, 1, totalCollateralToBuy);
+
+        // Setup the arbitragooor
+        address arbitragooor = address(69);
+        ERC20 crvUSD = ERC20(tokenAddrs["crvUSD"]);
+        airdrop((crvUSD), arbitragooor, dx);
+
+        // Buy
+        vm.startPrank(arbitragooor);
+        crvUSD.approve(address(amm), dx);
+        amm.exchange(0, 1, dx, 0); // crvusd --> collateral
+        vm.stopPrank();
+
+        // userTicks = amm.read_user_tick_numbers(address(strategy));
+        // activeBand = amm.active_band();
+        // console2.log("userTicks[0]: ", userTicks[0]);
+        // console2.log("userTicks[1]: ", userTicks[1]);
+        // console2.log("activeBand: ", activeBand);
+
+        // Get the amounts of stablecoins (`sumXY[0]`) and collateral (`sumXY[1]`) which user currently owns
+        uint256[2] memory sumXY = amm.get_sum_xy(address(strategy));
+        // console2.log("sumXY[0]: ", sumXY[0]);
+        // console2.log("sumXY[1]: ", sumXY[1]);
+        require(sumXY[0] > 0, "!SL"); // Make sure we were SL'd
+    }
+
+    function nukePrice() public {
+        // Cache the AMM instance
+        IAMM amm = IAMM(strategy.AMM());
+
+        // Cache the price oracle
+        IPriceOracle oracle = amm.price_oracle_contract();
+
+        // Nuke price by 25%
+        vm.mockCall(
+            address(oracle), abi.encodeWithSelector(IPriceOracle.price.selector), abi.encode(oracle.price() * 75 / 100)
+        );
+
+        // console2.log("oracle.price(): ", oracle.price());
+        // console2.log("amm.price_oracle(): ", amm.price_oracle());
+        // console2.log("get_p()(): ", amm.get_p());
+    }
+
+    function isHardLiquidatable() public view returns (bool) {
+        IController controller = IController(strategy.CONTROLLER());
+        return controller.loan_exists(address(strategy))
+            && controller.health(
+                address(strategy),
+                true // with price difference above the highest band
+            ) <= 0;
+    }
+
+    function isSoftLiquidatable() public view returns (bool) {
+        IAMM amm = IAMM(strategy.AMM());
+        return amm.get_sum_xy(address(strategy))[0] > 0;
     }
 
 }

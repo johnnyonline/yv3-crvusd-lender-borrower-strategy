@@ -117,7 +117,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function _supplyCollateral(
         uint256 _amount
     ) internal override {
-        loanExists ? CONTROLLER.add_collateral(_amount) : _createLoan(_amount);
+        if (!_isLiquidatable()) loanExists ? CONTROLLER.add_collateral(_amount) : _createLoan(_amount);
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -173,6 +173,15 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // View functions
     // ===============================================================
 
+    /// @notice Check if the strategy is in soft liquidation
+    /// @dev We use AMM.get_sum_xy to get the amounts of stablecoins (index 0) and collateral (index 1)
+    ///      we currently own. If we have stablecoins, it means some of our collateral was converted to crvUSD
+    ///      and we're in soft liquidation
+    /// @return True if the strategy is in soft liquidation, false otherwise
+    function _isInSoftLiquidation() internal view returns (bool) {
+        return AMM.get_sum_xy(address(this))[0] > 0;
+    }
+
     /// @inheritdoc BaseLenderBorrower
     function _getPrice(
         address _asset
@@ -192,11 +201,16 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @inheritdoc BaseLenderBorrower
     function _isLiquidatable() internal view override returns (bool) {
+        // If the loan doesn't exist, we are not liquidatable
+        // If it does, we check if we're in soft liquidation or eligible for hard liquidation
         return CONTROLLER.loan_exists(address(this))
-            && CONTROLLER.health(
-                address(this),
-                true // with price difference above the highest band
-            ) <= 0;
+            && (
+                _isInSoftLiquidation()
+                    || CONTROLLER.health(
+                        address(this),
+                        true // with price difference above the highest band
+                    ) <= 0
+            );
     }
 
     /// @inheritdoc BaseLenderBorrower

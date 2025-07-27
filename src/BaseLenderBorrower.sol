@@ -621,7 +621,7 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
     function _lendBorrowToken(
         uint256 amount
     ) internal virtual {
-        lenderVault.deposit(amount, address(this));
+        if (amount > 1) lenderVault.deposit(amount, address(this));
     }
 
     /**

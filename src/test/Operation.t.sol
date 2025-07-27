@@ -666,7 +666,7 @@ contract OperationTest is Setup {
         // Airdrop dust so we can repay debt fully
         airdrop(ERC20(borrowToken), address(strategy), 3);
 
-        // Fix the position
+        // Unwind the position since it's not profitable to borrow now
         vm.prank(management);
         strategy.tend();
 
@@ -677,6 +677,32 @@ contract OperationTest is Setup {
         assertEq(strategy.balanceOfDebt(), 0, "debt should be 0");
         assertEq(strategy.balanceOfCollateral(), 0, "collateral should be 0");
         assertFalse(strategy.loanExists(), "loan should not exist");
+
+        // Check we got some crvUSD when we repayed the debt, since we were in SL
+        assertGt(strategy.balanceOfBorrowToken(), 0, "should have some crvUSD idle");
+
+        // Show that tend trigger does not catch that we need to `claimAndSellRewards()` and re-lever, through a report
+        (trigger,) = strategy.tendTrigger();
+        assertFalse(trigger);
+
+        // Allow loss
+        vm.prank(management);
+        strategy.setDoHealthCheck(false);
+
+        // Report -- Sell the crvUSD
+        vm.prank(keeper);
+        strategy.report();
+
+        // Check we sold all the crvUSD
+        assertApproxEq(strategy.balanceOfBorrowToken(), 0, 1, "shouldnt have some crvUSD idle");
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertRelApproxEq(asset.balanceOf(user), balanceBefore + _amount, 100); // not more than 1% loss
     }
 
     function test_getIntoSL(

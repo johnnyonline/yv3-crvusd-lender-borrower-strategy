@@ -605,6 +605,80 @@ contract OperationTest is Setup {
         assertTrue(isSoftLiquidatable(), "!isSoftLiquidatable");
     }
 
+    function test_getIntoSL_andBorrowingHappensToBeUnprofitable(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Go degen so we're closer to SL
+        vm.prank(management);
+        strategy.setLtvMultipliers(uint16(8900), uint16(9000));
+
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check LTV
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+
+        // We are all set, shouldn't tend
+        (bool trigger,) = strategy.tendTrigger();
+        assertFalse(trigger);
+
+        // (almost) zero out rewards
+        vm.mockCall(
+            address(strategy.VAULT_APR_ORACLE()),
+            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encode(1)
+        );
+        assertEq(strategy.getNetRewardApr(0), 1);
+
+        // Now that it's unprofitable to borrow, we should tend
+        (trigger,) = strategy.tendTrigger();
+        assertTrue(trigger);
+
+        // Cache debt, collateral and current LTV balances before SL
+        uint256 debtBeforeSL = strategy.balanceOfDebt();
+        uint256 collBeforeSL = strategy.balanceOfCollateral();
+        uint256 ltvBeforeSL = strategy.getCurrentLTV();
+
+        // Get into SL, without price nuke, meaning we cannot hard liquidate, only soft
+        simulateSoftLiquidation(false);
+
+        // Sanity check that we still need to tend
+        (trigger,) = strategy.tendTrigger();
+        assertTrue(trigger);
+
+        // Check debt, collateral and LTV balances after SL
+        assertEq(strategy.balanceOfDebt(), debtBeforeSL, "!same debt");
+        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
+        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!tvl increased");
+        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!tvl above warning threshold");
+
+        // Make sure we are not hard liquidatable but in SL
+        assertFalse(isHardLiquidatable(), "isHardLiquidatable");
+        assertTrue(isSoftLiquidatable(), "!isSoftLiquidatable");
+
+        // If we were not checking `_isLiquidatable` before `_supplyCollateral`, this would cause a revert on `tend` with "Already in underwater mode"
+        airdrop(asset, address(strategy), 1);
+
+        // Airdrop dust so we can repay debt fully
+        airdrop(ERC20(borrowToken), address(strategy), 3);
+
+        // Fix the position
+        vm.prank(management);
+        strategy.tend();
+
+        // Check that we fixed the LTV
+        assertEq(strategy.getCurrentLTV(), 0, "LTV should be 0 since it's not profitable to borrow");
+
+        // Double check the current debt, collateral, and that a loan does not exist
+        assertEq(strategy.balanceOfDebt(), 0, "debt should be 0");
+        assertEq(strategy.balanceOfCollateral(), 0, "collateral should be 0");
+        assertFalse(strategy.loanExists(), "loan should not exist");
+    }
+
     function test_getIntoSL(
         uint256 _amount
     ) public {

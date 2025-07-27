@@ -183,6 +183,13 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
+    function availableWithdrawLimit(
+        address _owner
+    ) public view override returns (uint256) {
+        return _isInSoftLiquidation() ? 0 : BaseLenderBorrower.availableWithdrawLimit(_owner);
+    }
+
+    /// @inheritdoc BaseLenderBorrower
     function _getPrice(
         address _asset
     ) internal view override returns (uint256) {

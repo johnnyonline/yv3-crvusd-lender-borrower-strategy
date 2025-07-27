@@ -705,6 +705,25 @@ contract OperationTest is Setup {
         assertRelApproxEq(asset.balanceOf(user), balanceBefore + _amount, 100); // not more than 1% loss
     }
 
+    function test_getIntoSL_cantWithdraw(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Go degen so we're closer to SL
+        vm.prank(management);
+        strategy.setLtvMultipliers(uint16(8900), uint16(9000));
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Get into SL, without price nuke, meaning we cannot hard liquidate, only soft
+        simulateSoftLiquidation(false);
+
+        // Make sure can't withdraw if we are in SL
+        assertEq(strategy.availableWithdrawLimit(user), 0, "!available withdraw limit");
+    }
+
     function test_getIntoSL(
         uint256 _amount
     ) public {

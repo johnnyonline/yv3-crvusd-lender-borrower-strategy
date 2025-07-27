@@ -245,6 +245,26 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         require(sumXY[0] > 0, "!SL"); // Make sure we were SL'd
     }
 
+    function simulateHardLiquidation() public {
+        // Drop price by 25%
+        nukePrice();
+
+        // Make sure he are eligible for hard liquidation
+        assertTrue(isHardLiquidatable(), "!HL");
+
+        // Deal collateral to the liquidator
+        address liquidator = address(42069);
+        airdrop(ERC20(borrowToken), liquidator, 100_000_000 ether); // 100 million crvUSD
+
+        // Liquidate the strategy's position
+        vm.startPrank(liquidator);
+        ERC20(borrowToken).approve(strategy.CONTROLLER(), type(uint256).max);
+        IController(strategy.CONTROLLER()).liquidate(address(strategy), 0);
+        vm.stopPrank();
+
+        assertFalse(doesLoanExist(), "!HL2");
+    }
+
     function nukePrice() public {
         // Cache the AMM instance
         IAMM amm = IAMM(strategy.AMM());
@@ -260,6 +280,10 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         // console2.log("oracle.price(): ", oracle.price());
         // console2.log("amm.price_oracle(): ", amm.price_oracle());
         // console2.log("get_p()(): ", amm.get_p());
+    }
+
+    function doesLoanExist() public view returns (bool) {
+        return IController(strategy.CONTROLLER()).loan_exists(address(strategy));
     }
 
     function isHardLiquidatable() public view returns (bool) {

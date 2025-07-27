@@ -832,6 +832,102 @@ contract OperationTest is Setup {
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
     }
 
+    function test_getHardLiquidated(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Make our lives a bit easier
+        setFees(0, 0);
+
+        // Go degen so we're closer to HL
+        vm.prank(management);
+        strategy.setLtvMultipliers(uint16(8900), uint16(9000));
+
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check LTV
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+
+        // Get hard liquidated
+        simulateHardLiquidation();
+
+        // Check our position reports all zeros
+        assertEq(strategy.balanceOfDebt(), 0);
+        assertEq(strategy.balanceOfCollateral(), 0); // None of the collateral was converted to crvUSD
+        assertEq(strategy.getCurrentLTV(), 0);
+        assertEq(strategy.balanceOfCollateral(), 0);
+        assertEq(strategy.balanceOfBorrowToken(), 0);
+
+        // Check we still got our lent assets at least
+        assertGt(strategy.balanceOfLentAssets(), 0);
+
+        // Check users can deposit
+        assertGt(strategy.availableDepositLimit(user), 0);
+
+        // Show our strategy is still not aware that we don't have a loan anymore
+        assertTrue(strategy.loanExists());
+
+        // We don't want to tend
+        (bool trigger,) = strategy.tendTrigger();
+        assertFalse(trigger);
+
+        // Allow loss
+        vm.prank(management);
+        strategy.setDoHealthCheck(false);
+
+        // Reset the loanExists flag manually
+        vm.prank(management);
+        strategy.resetLoanExists();
+
+        // Report the loss, sell the lent assets, and get back out there (relever)
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertEq(profit, 0, "!profit");
+        assertGe(loss, 0, "!loss");
+
+        // Check LTV
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+
+        // Check we know we have a loan now
+        assertTrue(strategy.loanExists());
+    }
+
+    function test_getHardLiquidated_userWithdrawBeforeCleanup(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Go degen so we're closer to HL
+        vm.prank(management);
+        strategy.setLtvMultipliers(uint16(8900), uint16(9000));
+
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check LTV
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+
+        // Get hard liquidated
+        simulateHardLiquidation();
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        // Got nothing, should have waited...
+        assertEq(asset.balanceOf(user), balanceBefore, "!final balance");
+    }
+
     function test_rateForTapir(
         uint256 _amount
     ) public {

@@ -24,5 +24,6 @@ interface IController {
     ) external view returns (bool);
     function loan_discount() external view returns (uint256);
     function collect_fees() external returns (uint256);
+    function liquidate(address user, uint256 min_x) external;
 
 }

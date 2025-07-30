@@ -763,19 +763,80 @@ contract OperationTest is Setup {
         assertFalse(isHardLiquidatable(), "isHardLiquidatable");
         assertTrue(isSoftLiquidatable(), "!isSoftLiquidatable");
 
-        // SL'd, need to repay some debt
+        // SL'd, we need to close the position
         (trigger,) = strategy.tendTrigger();
         assertTrue(trigger);
 
-        // If we were not checking `_isLiquidatable` before `_supplyCollateral`, this would cause a revert on `tend` with "Already in underwater mode"
-        airdrop(asset, address(strategy), 1);
+        // Airdrop dust so we can repay debt fully
+        airdrop(ERC20(borrowToken), address(strategy), 3);
 
-        // Fix the position
+        // Close the position
         vm.prank(management);
         strategy.tend();
 
-        // Check that we fixed the LTV
+        // Make sure we are not liquidatable anymore
+        assertFalse(isHardLiquidatable(), "isHardLiquidatable");
+        assertFalse(isSoftLiquidatable(), "isSoftLiquidatable");
+
+        // Check some stuff now
+        assertEq(strategy.balanceOfDebt(), 0, "!debt");
+        assertEq(strategy.balanceOfCollateral(), 0, "!collateral");
+        assertGt(strategy.balanceOfAsset(), 0, "!asset"); // We should have some `asset` collateral, the rest is in crvUSD
+        assertApproxEq(strategy.balanceOfLentAssets(), 0, 3, "!lent"); // We should have used everything to repay the debt
+        assertGt(strategy.balanceOfBorrowToken(), 0, "!borrowToken"); // Some of the collateral was converted to crvUSD
+        assertEq(strategy.getCurrentLTV(), 0, "!tvl");
+        assertFalse(strategy.loanExists(), "!loanExists");
+    }
+
+    function test_depositWhenInSL(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Go degen so we're closer to SL
+        vm.prank(management);
+        strategy.setLtvMultipliers(uint16(8900), uint16(9000));
+
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check LTV
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+
+        // // Cache debt, collateral and current LTV balances before SL
+        uint256 debtBeforeSL = strategy.balanceOfDebt();
+        uint256 collBeforeSL = strategy.balanceOfCollateral();
+        uint256 ltvBeforeSL = strategy.getCurrentLTV();
+
+        // Cache total assets before SL
+        uint256 totalAssetsBeforeSL = strategy.totalAssets();
+
+        // Get into SL, without price nuke, meaning we cannot hard liquidate, only soft
+        simulateSoftLiquidation(false);
+
+        uint256 balanceOfDebtAfterSL_beforeDeposit = strategy.balanceOfDebt();
+
+        // Check debt, collateral and LTV balances after SL
+        assertEq(balanceOfDebtAfterSL_beforeDeposit, debtBeforeSL, "!same debt");
+        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
+        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!tvl increased");
+        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!tvl above warning threshold");
+
+        // Check total assets after SL
+        assertEq(strategy.totalAssets(), totalAssetsBeforeSL, "!totalAssets");
+
+        // Deposit again into strategy, while we are in SL
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Check debt, collateral and LTV balances after SL and after another deposit
+        assertLt(strategy.balanceOfDebt(), balanceOfDebtAfterSL_beforeDeposit, "!less debt"); // We repay some debt, bc balanceOfCollateral seems lower, as some was converted to crvUSD
+        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000); // TVL should seem fixed now, as we repaid some debt
+
+        // Check total assets after SL and after another deposit
+        assertEq(strategy.totalAssets(), totalAssetsBeforeSL + _amount, "!totalAssets");
     }
 
     function test_getIntoHL(

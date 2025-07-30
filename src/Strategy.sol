@@ -264,6 +264,13 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
+    function _tend(
+        uint256 _totalIdle
+    ) internal override {
+        _isInSoftLiquidation() ? _liquidatePosition(balanceOfCollateral()) : BaseLenderBorrower._tend(_totalIdle);
+    }
+
+    /// @inheritdoc BaseLenderBorrower
     function _claimRewards() internal pure override {
         return;
     }

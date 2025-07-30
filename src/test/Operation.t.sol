@@ -805,7 +805,7 @@ contract OperationTest is Setup {
         // Check LTV
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
 
-        // // Cache debt, collateral and current LTV balances before SL
+        // Cache debt, collateral and current LTV balances before SL
         uint256 debtBeforeSL = strategy.balanceOfDebt();
         uint256 collBeforeSL = strategy.balanceOfCollateral();
         uint256 ltvBeforeSL = strategy.getCurrentLTV();

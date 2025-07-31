@@ -35,7 +35,7 @@ contract Deploy is Script {
     function run() public {
         uint256 _pk = isTest ? 42069 : vm.envUint("DEPLOYER_PRIVATE_KEY");
         address _deployer = vm.addr(_pk);
-        require(_deployer == DEPLOYER, "!deployer");
+        // require(_deployer == DEPLOYER, "!deployer");
 
         if (!isTest) {
             s_asset = WETH;

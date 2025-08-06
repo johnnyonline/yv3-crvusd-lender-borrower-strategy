@@ -312,13 +312,13 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     }
 
     function _report() internal {
-        address keeper = 0xc2d26d13582324f10c7c3753B8F5Fc71011EcF57;
-        address keeper1 = 0x52605BbF54845f520a3E94792d019f62407db2f8;
+        address _keeper = 0xc2d26d13582324f10c7c3753B8F5Fc71011EcF57;
+        address _keeper1 = 0x52605BbF54845f520a3E94792d019f62407db2f8;
         address[] memory strategies = IVault(lenderVault).get_default_queue();
         for (uint256 i = 0; i < strategies.length; i++) {
-            vm.prank(keeper);
+            vm.prank(_keeper);
             IStrategyInterface(strategies[i]).report();
-            vm.prank(keeper1);
+            vm.prank(_keeper1);
             IVault(lenderVault).process_report(strategies[i]);
         }
     }

@@ -22,28 +22,29 @@ contract Deploy is Script {
     address public s_emergencyAdmin;
     IStrategyInterface public s_newStrategy;
 
+    address public constant SMS = 0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7; // SMS mainnet
     address public constant ACCOUNTANT = 0x5A74Cb32D36f2f517DB6f7b0A0591e09b22cDE69; // SMS mainnet accountant
     address public constant DEPLOYER = 0x285E3b1E82f74A99D07D2aD25e159E75382bB43B; // johnnyonline.eth
 
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant LENDER_VAULT = 0xf9A7084Ec30238495b3F5C51f05BA7Cd1C358dcF; // yv^2crvUSD
     address public constant MANAGEMENT = 0x285E3b1E82f74A99D07D2aD25e159E75382bB43B; // johnnyonline.eth
-    address public constant KEEPER = MANAGEMENT;
+    address public constant YHAAS = 0x604e586F17cE106B64185A7a0d2c1Da5bAce711E; // yHAAS
     address public constant PERFORMANCE_FEE_RECIPIENT = ACCOUNTANT;
     address public constant EMERGENCY_ADMIN = MANAGEMENT;
 
     function run() public {
         uint256 _pk = isTest ? 42069 : vm.envUint("DEPLOYER_PRIVATE_KEY");
         address _deployer = vm.addr(_pk);
-        // require(_deployer == DEPLOYER, "!deployer");
+        require(_deployer == DEPLOYER, "!deployer");
 
         if (!isTest) {
             s_asset = WETH;
             s_lenderVault = LENDER_VAULT;
-            s_management = MANAGEMENT;
+            s_management = SMS;
             s_performanceFeeRecipient = PERFORMANCE_FEE_RECIPIENT;
-            s_keeper = KEEPER;
-            s_emergencyAdmin = EMERGENCY_ADMIN;
+            s_keeper = YHAAS;
+            s_emergencyAdmin = SMS;
         }
 
         string memory _name = "Curve WETH Lender crvUSD Borrower";
@@ -68,3 +69,6 @@ contract Deploy is Script {
 
 // WETH
 // Strategy address: 0x6fdF47fb4198677D5B0843e52Cf12B5464cE723E
+
+// WETH -- with new APR oracle
+// Strategy address: 0x1D07b80AaD4BAfb996482693A61B745234d9aDf9

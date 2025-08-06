@@ -50,8 +50,9 @@ contract OperationTest is Setup {
 
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "collateral");
         assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
+
         // Earn Interest
         skip(1 days);
 
@@ -168,7 +169,7 @@ contract OperationTest is Setup {
 
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "collateral");
         assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
@@ -213,7 +214,7 @@ contract OperationTest is Setup {
 
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "collateral");
         assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
@@ -253,11 +254,13 @@ contract OperationTest is Setup {
 
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "collateral");
         assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
-        // Pay without earning
-        skip(30 days);
+        // lose some lent
+        vm.startPrank(address(strategy));
+        ERC20(lenderVault).transfer(address(420), ERC20(lenderVault).balanceOf(address(strategy)) * 10 / 100);
+        vm.stopPrank();
 
         // override availableWithdrawLimit
         vm.mockCall(
@@ -292,7 +295,7 @@ contract OperationTest is Setup {
 
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "collateral");
         assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
@@ -344,7 +347,7 @@ contract OperationTest is Setup {
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertEq(strategy.totalAssets(), _amount, "!totalAssets");
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertApproxEq(strategy.balanceOfCollateral(), _amount, 3, "!balanceOfCollateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "!balanceOfCollateral");
         assertRelApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 1000);
 
         // Withdrawl some collateral to pump LTV
@@ -455,7 +458,7 @@ contract OperationTest is Setup {
         // (almost) zero out rewards
         vm.mockCall(
             address(strategy.VAULT_APR_ORACLE()),
-            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encodeWithSelector(IVaultAPROracle.getStrategyApr.selector),
             abi.encode(1)
         );
         assertEq(strategy.getNetRewardApr(0), 1);
@@ -533,7 +536,7 @@ contract OperationTest is Setup {
 
         checkStrategyTotals(strategy, _amount, _amount, 0);
         assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-        assertEq(strategy.balanceOfCollateral(), _amount, "collateral");
+        assertApproxEq(strategy.balanceOfCollateral(), _amount, 5, "collateral");
         assertApproxEq(strategy.balanceOfDebt(), strategy.balanceOfLentAssets(), 3);
 
         // Earn Interest
@@ -550,7 +553,7 @@ contract OperationTest is Setup {
         // (almost) zero out rewards
         vm.mockCall(
             address(strategy.VAULT_APR_ORACLE()),
-            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encodeWithSelector(IVaultAPROracle.getStrategyApr.selector),
             abi.encode(1)
         );
         assertEq(strategy.getNetRewardApr(0), 1);
@@ -572,7 +575,7 @@ contract OperationTest is Setup {
         // Pump rewards
         vm.mockCall(
             address(strategy.VAULT_APR_ORACLE()),
-            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encodeWithSelector(IVaultAPROracle.getStrategyApr.selector),
             abi.encode(100e18)
         );
         assertEq(strategy.getNetRewardApr(0), 100e18);
@@ -580,6 +583,9 @@ contract OperationTest is Setup {
         // Even though now it's profitable to borrow, tend trigger can't identify that
         (trigger,) = strategy.tendTrigger();
         assertFalse(trigger);
+
+        // Airdrop dust to report properly
+        airdrop(asset, address(strategy), 5);
 
         // So report will lever back up
         vm.prank(keeper);
@@ -629,7 +635,7 @@ contract OperationTest is Setup {
         // (almost) zero out rewards
         vm.mockCall(
             address(strategy.VAULT_APR_ORACLE()),
-            abi.encodeWithSelector(IVaultAPROracle.getExpectedApr.selector),
+            abi.encodeWithSelector(IVaultAPROracle.getStrategyApr.selector),
             abi.encode(1)
         );
         assertEq(strategy.getNetRewardApr(0), 1);

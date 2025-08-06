@@ -60,7 +60,7 @@ contract StrategyAprOracle is AprOracleBase {
     function aprAfterDebtChange(address _strategy, int256 _delta) external view override returns (uint256) {
         IStrategy strategy_ = IStrategy(_strategy);
         uint256 _borrowApr = IAMM(strategy_.AMM()).rate() * SECONDS_IN_YEAR;
-        uint256 _rewardApr = VAULT_APR_ORACLE.getExpectedApr(strategy_.lenderVault(), _delta);
+        uint256 _rewardApr = VAULT_APR_ORACLE.getStrategyApr(strategy_.lenderVault(), _delta);
         if (_borrowApr >= _rewardApr) return 0;
         uint256 _targetLTV = (strategy_.getLiquidateCollateralFactor() * strategy_.targetLTVMultiplier()) / MAX_BPS;
         return (_rewardApr - _borrowApr) * _targetLTV / WAD;

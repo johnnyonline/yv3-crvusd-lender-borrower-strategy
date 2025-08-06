@@ -241,7 +241,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function getNetRewardApr(
         uint256 _newAmount
     ) public view override returns (uint256) {
-        return VAULT_APR_ORACLE.getExpectedApr(address(lenderVault), int256(_newAmount));
+        return VAULT_APR_ORACLE.getStrategyApr(address(lenderVault), int256(_newAmount));
     }
 
     /// @inheritdoc BaseLenderBorrower

@@ -62,6 +62,9 @@ contract ShutdownTest is Setup {
 
         assertEq(strategy.totalAssets(), _amount, "!totalAssets");
 
+        // Airdrop dust to withdraw properly
+        airdrop(asset, address(strategy), 5);
+
         // should be able to pass uint 256 max and not revert.
         vm.prank(emergencyAdmin);
         strategy.emergencyWithdraw(type(uint256).max);

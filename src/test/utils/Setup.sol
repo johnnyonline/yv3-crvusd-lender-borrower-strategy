@@ -26,6 +26,15 @@ interface IFactory {
 
 }
 
+interface IVault {
+
+    function get_default_queue() external view returns (address[] memory);
+    function process_report(
+        address strategy
+    ) external returns (uint256, uint256);
+
+}
+
 contract Setup is Deploy, ExtendedTest, IEvents {
 
     // Contract instances that we will use repeatedly.
@@ -34,7 +43,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
 
     address public borrowToken;
 
-    address public lenderVault = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F; // yvcrvUSD-2
+    address public lenderVault = 0xf9A7084Ec30238495b3F5C51f05BA7Cd1C358dcF; // yv^2crvUSD
 
     address public controllerFactory = 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
 
@@ -55,15 +64,15 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     uint256 public decimals;
     uint256 public MAX_BPS = 10_000;
 
-    // Fuzz from $0.01 of 1e6 stable coins up to 1 trillion of a 1e18 coin
-    uint256 public maxFuzzAmount = 100e18;
-    uint256 public minFuzzAmount = 1e18;
+    // Fuzz from 0.01 WETH up to 10 of WETH
+    uint256 public maxFuzzAmount = 10 ether;
+    uint256 public minFuzzAmount = 0.01 ether;
 
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
 
     function setUp() public virtual {
-        uint256 _blockNumber = 22_305_807; // Caching for faster tests
+        uint256 _blockNumber = 23_077_560; // Caching for faster tests
         vm.selectFork(vm.createFork(vm.envString("ETH_RPC_URL"), _blockNumber));
 
         _setTokenAddrs();
@@ -90,6 +99,8 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         borrowToken = strategy.borrowToken();
 
         factory = strategy.FACTORY();
+
+        _report();
 
         // label all the used addresses for traces
         vm.label(keeper, "keeper");
@@ -298,6 +309,18 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     function isSoftLiquidatable() public view returns (bool) {
         IAMM amm = IAMM(strategy.AMM());
         return amm.get_sum_xy(address(strategy))[0] > 0;
+    }
+
+    function _report() internal {
+        address keeper = 0xc2d26d13582324f10c7c3753B8F5Fc71011EcF57;
+        address keeper1 = 0x52605BbF54845f520a3E94792d019f62407db2f8;
+        address[] memory strategies = IVault(lenderVault).get_default_queue();
+        for (uint256 i = 0; i < strategies.length; i++) {
+            vm.prank(keeper);
+            IStrategyInterface(strategies[i]).report();
+            vm.prank(keeper1);
+            IVault(lenderVault).process_report(strategies[i]);
+        }
     }
 
 }

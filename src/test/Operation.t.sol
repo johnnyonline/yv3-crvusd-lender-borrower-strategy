@@ -38,6 +38,29 @@ contract OperationTest is Setup {
         console2.log("reward APR:", strategy.getNetRewardApr(0));
     }
 
+    function test_operation_ignoreAprs(
+        uint256 _amount
+    ) public {
+        // Ignore borrow and reward APRs
+        vm.startPrank(management);
+        strategy.setIgnoreBorrowApr(true);
+        strategy.setIgnoreRewardApr(true);
+        vm.stopPrank();
+
+        // Check both return 0
+        assertEq(strategy.getNetBorrowApr(0), 0);
+        assertEq(strategy.getNetRewardApr(0), 0);
+
+        vm.expectRevert("!management");
+        strategy.setIgnoreBorrowApr(false);
+
+        vm.expectRevert("!management");
+        strategy.setIgnoreRewardApr(false);
+
+        // Run test_operation as usual
+        test_operation(_amount);
+    }
+
     function test_operation(
         uint256 _amount
     ) public {
@@ -468,17 +491,17 @@ contract OperationTest is Setup {
         assertTrue(trigger);
 
         vm.prank(management);
-        strategy.setForceLeverage(true);
+        strategy.setIgnoreBorrowApr(true);
 
-        assertTrue(strategy.forceLeverage());
+        assertTrue(strategy.ignoreBorrowApr());
         assertEq(strategy.getNetBorrowApr(0), 0);
 
-        // Now that we force leverage, we should not tend
+        // Now that we ignore borrow apr, we should not tend
         (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
 
         vm.expectRevert("!management");
-        strategy.setForceLeverage(false);
+        strategy.setIgnoreBorrowApr(false);
     }
 
     function test_resetLoanExists(

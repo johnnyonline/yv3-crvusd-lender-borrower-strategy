@@ -17,9 +17,11 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @notice Indicates if a loan was created or should be created
     bool public loanExists;
 
-    /// @notice If true, `getNetBorrowApr()` will return 0,
-    ///         which means we'll always consider it profitable to borrow
-    bool public forceLeverage;
+    /// @notice If true, `getNetBorrowApr()` will always return 0
+    bool public ignoreBorrowApr;
+
+    /// @notice If true, `getNetRewardApr()` will always return 0
+    bool public ignoreRewardApr;
 
     // ===============================================================
     // Constants
@@ -101,12 +103,20 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         loanExists = false;
     }
 
-    /// @notice Set the forceLeverage flag
-    /// @param _forceLeverage The new value for the forceLeverage flag
-    function setForceLeverage(
-        bool _forceLeverage
+    /// @notice Set the ignoreBorrowApr flag
+    /// @param _ignoreBorrowApr Whether to ignore the borrow APR
+    function setIgnoreBorrowApr(
+        bool _ignoreBorrowApr
     ) external onlyManagement {
-        forceLeverage = _forceLeverage;
+        ignoreBorrowApr = _ignoreBorrowApr;
+    }
+
+    /// @notice Set the ignoreRewardApr flag
+    /// @param _ignoreRewardApr Whether to ignore the reward APR
+    function setIgnoreRewardApr(
+        bool _ignoreRewardApr
+    ) external onlyManagement {
+        ignoreRewardApr = _ignoreRewardApr;
     }
 
     // ===============================================================
@@ -234,14 +244,14 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function getNetBorrowApr(
         uint256 /*_newAmount*/
     ) public view override returns (uint256) {
-        return forceLeverage ? 0 : AMM.rate() * SECONDS_IN_YEAR; // Since we're not dumping, rate change is probably negligible
+        return ignoreBorrowApr ? 0 : AMM.rate() * SECONDS_IN_YEAR; // Since we're not dumping, rate change is probably negligible
     }
 
     /// @inheritdoc BaseLenderBorrower
     function getNetRewardApr(
         uint256 _newAmount
     ) public view override returns (uint256) {
-        return VAULT_APR_ORACLE.getStrategyApr(address(lenderVault), int256(_newAmount));
+        return ignoreRewardApr ? 0 : VAULT_APR_ORACLE.getStrategyApr(address(lenderVault), int256(_newAmount));
     }
 
     /// @inheritdoc BaseLenderBorrower

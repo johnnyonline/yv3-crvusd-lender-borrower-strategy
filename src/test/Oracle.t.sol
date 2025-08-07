@@ -11,13 +11,10 @@ contract OracleTest is Setup {
 
     function setUp() public override {
         super.setUp();
-        oracle = new StrategyAprOracle(management);
+        oracle = s_oracle;
     }
 
     function checkOracle(address _strategy, uint256 _delta) public {
-        // Check set up
-        assertEq(oracle.governance(), management);
-
         uint256 currentApr = oracle.aprAfterDebtChange(_strategy, 0);
         console2.log("Current APR:", currentApr);
 

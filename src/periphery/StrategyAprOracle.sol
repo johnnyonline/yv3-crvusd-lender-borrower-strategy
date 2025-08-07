@@ -29,10 +29,7 @@ contract StrategyAprOracle is AprOracleBase {
     // Constructor
     // ===============================================================
 
-    /// @param _governance Address of the Governance contract
-    constructor(
-        address _governance
-    ) AprOracleBase("crvUSD Lender Borrower Strategy APR Oracle", _governance) {}
+    constructor() AprOracleBase("crvUSD Lender Borrower Strategy APR Oracle", address(0)) {}
 
     // ===============================================================
     // View functions

@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 import "forge-std/Script.sol";
 
 import {IStrategyInterface} from "../src/interfaces/IStrategyInterface.sol";
+import {StrategyAprOracle} from "../src/periphery/StrategyAprOracle.sol";
 import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
 
 // ---- Usage ----
@@ -20,6 +21,7 @@ contract Deploy is Script {
     address public s_performanceFeeRecipient;
     address public s_keeper;
     address public s_emergencyAdmin;
+    StrategyAprOracle public s_oracle;
     IStrategyInterface public s_newStrategy;
 
     address public constant SMS = 0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7; // SMS mainnet
@@ -53,6 +55,7 @@ contract Deploy is Script {
 
         // deploy
         s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_lenderVault)));
+        s_oracle = new StrategyAprOracle();
 
         // init
         s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
@@ -60,9 +63,18 @@ contract Deploy is Script {
         s_newStrategy.setPendingManagement(s_management);
         s_newStrategy.setEmergencyAdmin(s_emergencyAdmin);
 
+        // ignore APRs
+        if (!isTest) {
+            s_newStrategy.setIgnoreBorrowApr(true);
+            s_newStrategy.setIgnoreRewardApr(true);
+        }
+
         vm.stopBroadcast();
 
-        if (!isTest) console.log("Strategy address: %s", address(s_newStrategy));
+        if (!isTest) {
+            console.log("Oracle address: %s", address(s_oracle));
+            console.log("Strategy address: %s", address(s_newStrategy));
+        }
     }
 
 }
@@ -72,3 +84,7 @@ contract Deploy is Script {
 
 // WETH -- with new APR oracle
 // Strategy address: 0x1D07b80AaD4BAfb996482693A61B745234d9aDf9
+
+// WETH -- with new APR oracle and ignore APRs
+// Oracle address: 0x0E40eb56626cFD0f41CA7A72618209D958561e65
+// Strategy address: 0x629656a04183aFFdE9449158757D36A8a13cd168

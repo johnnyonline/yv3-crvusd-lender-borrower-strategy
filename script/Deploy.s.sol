@@ -56,7 +56,7 @@ contract Deploy is Script {
 
         // deploy
         s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_lenderVault)));
-        // s_oracle = new StrategyAprOracle();
+        s_oracle = new StrategyAprOracle();
 
         // init
         if (isTest) {
@@ -75,7 +75,7 @@ contract Deploy is Script {
         vm.stopBroadcast();
 
         if (!isTest) {
-            // console.log("Oracle address: %s", address(s_oracle));
+            console.log("Oracle address: %s", address(s_oracle));
             console.log("Strategy address: %s", address(s_newStrategy));
         }
     }

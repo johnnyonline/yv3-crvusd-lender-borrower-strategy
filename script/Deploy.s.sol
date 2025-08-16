@@ -38,9 +38,10 @@ contract Deploy is Script {
     function run() public {
         uint256 _pk = isTest ? 42069 : vm.envUint("DEPLOYER_PRIVATE_KEY");
         address _deployer = vm.addr(_pk);
-        // require(_deployer == DEPLOYER, "!deployer");
 
         if (!isTest) {
+            require(_deployer == DEPLOYER, "!deployer");
+
             s_asset = WETH;
             s_lenderVault = LENDER_VAULT;
             s_management = SMS;
@@ -58,10 +59,12 @@ contract Deploy is Script {
         s_oracle = new StrategyAprOracle();
 
         // init
-        s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
-        s_newStrategy.setKeeper(s_keeper);
-        s_newStrategy.setPendingManagement(s_management);
-        s_newStrategy.setEmergencyAdmin(s_emergencyAdmin);
+        if (isTest) {
+            s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
+            s_newStrategy.setKeeper(s_keeper);
+            s_newStrategy.setPendingManagement(s_management);
+            s_newStrategy.setEmergencyAdmin(s_emergencyAdmin);
+        }
 
         // ignore APRs
         if (!isTest) {

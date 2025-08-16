@@ -49,7 +49,8 @@ contract OperationTest is Setup {
 
         // Check both return 0
         assertEq(strategy.getNetBorrowApr(0), 0);
-        assertEq(strategy.getNetRewardApr(0), 0);
+        assertEq(strategy.getNetRewardApr(0), 1);
+        assertGt(strategy.getNetRewardApr(0), strategy.getNetBorrowApr(0));
 
         vm.expectRevert("!management");
         strategy.setIgnoreBorrowApr(false);
@@ -465,6 +466,20 @@ contract OperationTest is Setup {
 
         (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
+    }
+
+    function test_tendTrigger_ignoreAPRs(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Ignore borrow and reward APRs
+        vm.startPrank(management);
+        strategy.setIgnoreBorrowApr(true);
+        strategy.setIgnoreRewardApr(true);
+        vm.stopPrank();
+
+        test_tendTrigger(_amount);
     }
 
     function test_tendTrigger_noRewards(

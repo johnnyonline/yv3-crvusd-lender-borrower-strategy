@@ -56,7 +56,7 @@ contract Deploy is Script {
 
         // deploy
         s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_lenderVault)));
-        s_oracle = new StrategyAprOracle();
+        // s_oracle = new StrategyAprOracle();
 
         // init
         if (isTest) {
@@ -75,7 +75,7 @@ contract Deploy is Script {
         vm.stopBroadcast();
 
         if (!isTest) {
-            console.log("Oracle address: %s", address(s_oracle));
+            // console.log("Oracle address: %s", address(s_oracle));
             console.log("Strategy address: %s", address(s_newStrategy));
         }
     }
@@ -91,3 +91,6 @@ contract Deploy is Script {
 // WETH -- with new APR oracle and ignore APRs
 // Oracle address: 0x0E40eb56626cFD0f41CA7A72618209D958561e65
 // Strategy address: 0x629656a04183aFFdE9449158757D36A8a13cd168
+
+// WETH -- with fixed ignore APRs
+// Strategy address: 0xdb0aEca3fB4337E1a902FA1CeeBe8096f4484b3E

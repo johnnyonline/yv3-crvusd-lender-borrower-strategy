@@ -917,7 +917,8 @@ abstract contract BaseLenderBorrower is BaseHealthCheck {
     function _emergencyWithdraw(
         uint256 _amount
     ) internal virtual override {
-        if (_amount > 0) _withdrawBorrowToken(Math.min(_amount, _lenderMaxWithdraw()));
+        _amount = Math.min(_amount, _lenderMaxWithdraw());
+        if (_amount > 0) _withdrawBorrowToken(_amount);
 
         // Repay everything we can.
         _repayTokenDebt();

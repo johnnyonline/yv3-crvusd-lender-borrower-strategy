@@ -221,13 +221,11 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         // If the loan doesn't exist, we are not liquidatable
         // If it does, we check if we're in soft liquidation or eligible for hard liquidation
         return CONTROLLER.loan_exists(address(this))
-            && (
-                _isInSoftLiquidation()
-                    || CONTROLLER.health(
-                        address(this),
-                        true // with price difference above the highest band
-                    ) <= 0
-            );
+            && (_isInSoftLiquidation()
+                || CONTROLLER.health(
+                    address(this),
+                    true // with price difference above the highest band
+                ) <= 0);
     }
 
     /// @inheritdoc BaseLenderBorrower

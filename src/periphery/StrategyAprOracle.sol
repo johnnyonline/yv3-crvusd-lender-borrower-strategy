@@ -14,13 +14,13 @@ contract StrategyAprOracle is AprOracleBase {
     // ===============================================================
 
     /// @notice The WAD
-    uint256 private constant WAD = 1e18;
+    uint256 private constant _WAD = 1e18;
 
     /// @notice The maximum basis points
-    uint256 private constant MAX_BPS = 10_000;
+    uint256 private constant _MAX_BPS = 10_000;
 
     /// @notice The number of seconds in a year
-    uint256 private constant SECONDS_IN_YEAR = 365 days;
+    uint256 private constant _SECONDS_IN_YEAR = 365 days;
 
     /// @notice The lender vault APR oracle contract
     IVaultAPROracle public constant VAULT_APR_ORACLE = IVaultAPROracle(0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
@@ -54,13 +54,16 @@ contract StrategyAprOracle is AprOracleBase {
      * @param _delta The difference in debt.
      * @return . The expected apr for the strategy represented as 1e18.
      */
-    function aprAfterDebtChange(address _strategy, int256 _delta) external view override returns (uint256) {
+    function aprAfterDebtChange(
+        address _strategy,
+        int256 _delta
+    ) external view override returns (uint256) {
         IStrategy strategy_ = IStrategy(_strategy);
-        uint256 _borrowApr = IAMM(strategy_.AMM()).rate() * SECONDS_IN_YEAR;
+        uint256 _borrowApr = IAMM(strategy_.AMM()).rate() * _SECONDS_IN_YEAR;
         uint256 _rewardApr = VAULT_APR_ORACLE.getStrategyApr(strategy_.lenderVault(), _delta);
         if (_borrowApr >= _rewardApr) return 0;
-        uint256 _targetLTV = (strategy_.getLiquidateCollateralFactor() * strategy_.targetLTVMultiplier()) / MAX_BPS;
-        return (_rewardApr - _borrowApr) * _targetLTV / WAD;
+        uint256 _targetLTV = (strategy_.getLiquidateCollateralFactor() * strategy_.targetLTVMultiplier()) / _MAX_BPS;
+        return (_rewardApr - _borrowApr) * _targetLTV / _WAD;
     }
 
 }

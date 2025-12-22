@@ -407,10 +407,10 @@ contract OperationTest is Setup {
         assertTrue(!trigger);
 
         // Borrow too much.
-        uint256 toBorrow = (
-            strategy.balanceOfCollateral()
-                * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 100)) / MAX_BPS)
-        ) / 1e18;
+        uint256 toBorrow =
+            (strategy.balanceOfCollateral()
+                    * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 100)) / MAX_BPS))
+                / 1e18;
 
         toBorrow = _fromUsd(_toUsd(toBorrow, address(asset)), borrowToken);
 

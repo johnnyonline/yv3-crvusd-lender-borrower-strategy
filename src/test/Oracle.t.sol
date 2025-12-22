@@ -14,7 +14,10 @@ contract OracleTest is Setup {
         oracle = s_oracle;
     }
 
-    function checkOracle(address _strategy, uint256 _delta) public {
+    function checkOracle(
+        address _strategy,
+        uint256 _delta
+    ) public {
         uint256 currentApr = oracle.aprAfterDebtChange(_strategy, 0);
         console2.log("Current APR:", currentApr);
 
@@ -32,7 +35,10 @@ contract OracleTest is Setup {
         assertGt(currentApr, positiveDebtChangeApr, "positive change");
     }
 
-    function test_oracle(uint256 _amount, uint16 _percentChange) public {
+    function test_oracle(
+        uint256 _amount,
+        uint16 _percentChange
+    ) public {
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
         _percentChange = uint16(bound(uint256(_percentChange), 10, MAX_BPS));
 
@@ -44,5 +50,6 @@ contract OracleTest is Setup {
     }
 
     // TODO: Deploy multiple strategies with different tokens as `asset` to test against the oracle.
+
 
 }

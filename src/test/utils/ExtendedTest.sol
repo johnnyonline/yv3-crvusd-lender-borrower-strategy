@@ -6,7 +6,10 @@ import {Test} from "forge-std/Test.sol";
 contract ExtendedTest is Test {
 
     // solhint-disable-next-line
-    function assertNeq(address a, address b) internal {
+    function assertNeq(
+        address a,
+        address b
+    ) internal {
         if (a == b) {
             emit log("Error: a != b not satisfied [address]");
             emit log_named_address("  Expected", b);
@@ -19,7 +22,11 @@ contract ExtendedTest is Test {
     // @a actual value
     // @b expected value
     // solhint-disable-next-line
-    function assertRelApproxEq(uint256 a, uint256 b, uint256 maxPercentDelta) internal virtual {
+    function assertRelApproxEq(
+        uint256 a,
+        uint256 b,
+        uint256 maxPercentDelta
+    ) internal virtual {
         uint256 delta = a > b ? a - b : b - a;
         uint256 maxRelDelta = b / maxPercentDelta;
 
@@ -35,7 +42,11 @@ contract ExtendedTest is Test {
 
     // Can be removed once https://github.com/dapphub/ds-test/pull/25 is merged and we update submodules, but useful for now
     // solhint-disable-next-line
-    function assertApproxEq(uint256 a, uint256 b, uint256 margin_of_error) internal {
+    function assertApproxEq(
+        uint256 a,
+        uint256 b,
+        uint256 margin_of_error
+    ) internal {
         if (a > b) {
             if (a - b > margin_of_error) {
                 emit log("Error a not equal to b");
@@ -54,7 +65,12 @@ contract ExtendedTest is Test {
     }
 
     // solhint-disable-next-line
-    function assertApproxEq(uint256 a, uint256 b, uint256 margin_of_error, string memory err) internal {
+    function assertApproxEq(
+        uint256 a,
+        uint256 b,
+        uint256 margin_of_error,
+        string memory err
+    ) internal {
         if (a > b) {
             if (a - b > margin_of_error) {
                 emit log_named_string("Error", err);

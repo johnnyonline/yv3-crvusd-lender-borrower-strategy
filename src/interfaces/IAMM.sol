@@ -24,10 +24,19 @@ interface IAMM {
     function coins(
         uint256 i
     ) external view returns (address);
-    function exchange(uint256 i, uint256 j, uint256 dx, uint256 min_dy) external;
+    function exchange(
+        uint256 i,
+        uint256 j,
+        uint256 dx,
+        uint256 min_dy
+    ) external;
     function bands_y(
         int256 band
     ) external view returns (uint256);
-    function get_dx(uint256 i, uint256 j, uint256 out_amount) external view returns (uint256);
+    function get_dx(
+        uint256 i,
+        uint256 j,
+        uint256 out_amount
+    ) external view returns (uint256);
 
 }

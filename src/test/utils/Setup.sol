@@ -43,7 +43,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
 
     address public borrowToken;
 
-    address public lenderVault = 0xf9A7084Ec30238495b3F5C51f05BA7Cd1C358dcF; // yv^2crvUSD
+    address public lenderVault = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F; // yvcrvUSD
 
     address public controllerFactory = 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
 
@@ -72,13 +72,14 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     uint256 public profitMaxUnlockTime = 10 days;
 
     function setUp() public virtual {
-        uint256 _blockNumber = 23_077_560; // Caching for faster tests
+        // uint256 _blockNumber = 23_077_560; // Caching for faster tests
+        uint256 _blockNumber = 24068075;
         vm.selectFork(vm.createFork(vm.envString("ETH_RPC_URL"), _blockNumber));
 
         _setTokenAddrs();
 
         // Set asset
-        asset = ERC20(tokenAddrs["WETH"]);
+        asset = ERC20(tokenAddrs["wstETH"]);
 
         // Set decimals
         decimals = asset.decimals();
@@ -100,7 +101,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
 
         factory = strategy.FACTORY();
 
-        _report();
+        // _report();
 
         // label all the used addresses for traces
         vm.label(keeper, "keeper");
@@ -125,7 +126,11 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         return address(_strategy);
     }
 
-    function depositIntoStrategy(IStrategyInterface _strategy, address _user, uint256 _amount) public {
+    function depositIntoStrategy(
+        IStrategyInterface _strategy,
+        address _user,
+        uint256 _amount
+    ) public {
         vm.prank(_user);
         asset.approve(address(_strategy), _amount);
 
@@ -133,7 +138,11 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         _strategy.deposit(_amount, _user);
     }
 
-    function mintAndDepositIntoStrategy(IStrategyInterface _strategy, address _user, uint256 _amount) public {
+    function mintAndDepositIntoStrategy(
+        IStrategyInterface _strategy,
+        address _user,
+        uint256 _amount
+    ) public {
         airdrop(asset, _user, _amount);
         depositIntoStrategy(_strategy, _user, _amount);
     }
@@ -155,12 +164,19 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         assertEq(_totalAssets, _totalDebt + _totalIdle, "!Added");
     }
 
-    function airdrop(ERC20 _asset, address _to, uint256 _amount) public {
+    function airdrop(
+        ERC20 _asset,
+        address _to,
+        uint256 _amount
+    ) public {
         uint256 balanceBefore = _asset.balanceOf(_to);
         deal(address(_asset), _to, balanceBefore + _amount);
     }
 
-    function setFees(uint16 _protocolFee, uint16 _performanceFee) public {
+    function setFees(
+        uint16 _protocolFee,
+        uint16 _performanceFee
+    ) public {
         address _gov = IFactory(factory).governance();
 
         // Need to make sure there is a protocol fee recipient to set the fee.
@@ -183,16 +199,23 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         tokenAddrs["DAI"] = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
         tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         tokenAddrs["crvUSD"] = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E;
+        tokenAddrs["wstETH"] = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
     }
 
-    function _toUsd(uint256 _amount, address _token) internal view returns (uint256) {
+    function _toUsd(
+        uint256 _amount,
+        address _token
+    ) internal view returns (uint256) {
         if (_amount == 0) return 0;
         unchecked {
             return (_amount * _getPrice(_token)) / (uint256(10 ** ERC20(_token).decimals()));
         }
     }
 
-    function _fromUsd(uint256 _amount, address _token) internal view returns (uint256) {
+    function _fromUsd(
+        uint256 _amount,
+        address _token
+    ) internal view returns (uint256) {
         if (_amount == 0) return 0;
         unchecked {
             return (_amount * (uint256(10 ** ERC20(_token).decimals()))) / _getPrice(_token);
@@ -312,10 +335,12 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     }
 
     function _report() internal {
-        address _keeper = 0xc2d26d13582324f10c7c3753B8F5Fc71011EcF57;
+        address _keeper = 0x604e586F17cE106B64185A7a0d2c1Da5bAce711E;
+        address _scrvUSD = 0x0655977FEb2f289A4aB78af67BAB0d17aAb84367;
         address _keeper1 = 0x52605BbF54845f520a3E94792d019f62407db2f8;
         address[] memory strategies = IVault(lenderVault).get_default_queue();
         for (uint256 i = 0; i < strategies.length; i++) {
+            if (strategies[i] == address(_scrvUSD)) continue;
             vm.prank(_keeper);
             IStrategyInterface(strategies[i]).report();
             vm.prank(_keeper1);

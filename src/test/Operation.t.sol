@@ -3,7 +3,7 @@ pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
 import {IBaseStrategy} from "@tokenized-strategy/interfaces/IBaseStrategy.sol";
-import {Setup, ERC20} from "./utils/Setup.sol";
+import {Setup, ERC20, IAMM} from "./utils/Setup.sol";
 import {IController, IControllerFactory} from "../interfaces/IControllerFactory.sol";
 import {ILenderBorrower} from "../interfaces/ILenderBorrower.sol";
 import {IVaultAPROracle} from "../interfaces/IVaultAPROracle.sol";
@@ -1049,6 +1049,68 @@ contract OperationTest is Setup {
 
         // Check that the borrow rate did not change after deposit
         assertEq(strategy.getNetBorrowApr(0), borrowRateBefore);
+    }
+
+    function test_ammOraclePoC() public {
+        uint256 _amount = 1 ether; // 1 wstETH
+
+        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Cache balances before
+        uint256 balanceOfDebt = strategy.balanceOfDebt();
+        uint256 balanceOfCollateral = strategy.balanceOfCollateral();
+
+        // Get prices from both oracles before
+        uint256 ammPrice = IController(strategy.CONTROLLER()).amm_price() / 1e10;
+        uint256 emaPrice = IAMM(strategy.AMM()).price_oracle() / 1e10;
+
+        // NOTE: on block `24_155_522` (from `Setup.sol`), both prices are very close
+        // on other blocks they might differ SIGNIFICANTLY
+        assertApproxEqRel(ammPrice, emaPrice, 2e16); // 2%
+
+        // LTVs from Strategy and both oracles before
+        uint256 ltvFromStrategy = strategy.getCurrentLTV();
+        uint256 ltvAmmOracle = ((balanceOfDebt * 1e8 / 1e18) * 1e18) / (balanceOfCollateral * ammPrice / 1e18);
+        uint256 ltvEMAOracle = ((balanceOfDebt * 1e8 / 1e18) * 1e18) / (balanceOfCollateral * emaPrice / 1e18);
+
+        assertEq(ltvFromStrategy, ltvAmmOracle);
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+        assertApproxEqRel(ltvEMAOracle, ltvAmmOracle, 2e16); // 2%
+
+        // Earn Interest
+        skip(1 days);
+
+        // Airdrop some borrow tokens to demonstrate price difference effect
+        airdrop(ERC20(borrowToken), address(strategy), 500 ether); // 500 crvUSD
+
+        // Report profit
+        vm.prank(keeper);
+        strategy.report();
+
+        // Cache balances after
+        balanceOfDebt = strategy.balanceOfDebt();
+        balanceOfCollateral = strategy.balanceOfCollateral();
+
+        // Get prices from both oracles
+        ammPrice = IController(strategy.CONTROLLER()).amm_price() / 1e10;
+        emaPrice = IAMM(strategy.AMM()).price_oracle() / 1e10;
+
+        // Suddenly the AMM price pumps bc we bought wstETH
+        assertGt(ammPrice, emaPrice * 105 / 100);
+
+        // LTVs from Strategy and both oracles after
+        ltvFromStrategy = strategy.getCurrentLTV();
+        ltvAmmOracle = ((balanceOfDebt * 1e8 / 1e18) * 1e18) / (balanceOfCollateral * ammPrice / 1e18);
+        ltvEMAOracle = ((balanceOfDebt * 1e8 / 1e18) * 1e18) / (balanceOfCollateral * emaPrice / 1e18);
+
+        assertEq(ltvFromStrategy, ltvAmmOracle);
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
+
+        // LTV from EMA oracle is significantly higher than from AMM oracle now
+        assertGt(ltvEMAOracle, ltvAmmOracle * 105 / 100);
     }
 
 }

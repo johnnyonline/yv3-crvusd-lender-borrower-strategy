@@ -72,8 +72,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     uint256 public profitMaxUnlockTime = 10 days;
 
     function setUp() public virtual {
-        // uint256 _blockNumber = 23_077_560; // Caching for faster tests
-        uint256 _blockNumber = 24068075;
+        uint256 _blockNumber = 24_155_522; // Caching for faster tests
         vm.selectFork(vm.createFork(vm.envString("ETH_RPC_URL"), _blockNumber));
 
         _setTokenAddrs();

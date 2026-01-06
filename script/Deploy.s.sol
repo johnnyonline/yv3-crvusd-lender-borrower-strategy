@@ -106,3 +106,6 @@ contract Deploy is Script {
 
 // wstETH
 // Strategy address: 0x38f4F9aAf92bdCACDFe92eD1e025a66E343b05eC
+
+// WETH -- with price oracle fix
+// Strategy address: 0x48E560AfB1482f63e5e8C0eA7fBdd8Fd82054eC3

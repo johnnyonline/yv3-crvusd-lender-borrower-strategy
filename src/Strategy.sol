@@ -203,7 +203,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function _getPrice(
         address _asset
     ) internal view override returns (uint256) {
-        return _asset == borrowToken ? WAD / DECIMALS_DIFF : CONTROLLER.amm_price() / DECIMALS_DIFF;
+        return _asset == borrowToken ? WAD / DECIMALS_DIFF : AMM.price_oracle() / DECIMALS_DIFF;
     }
 
     /// @inheritdoc BaseLenderBorrower

@@ -40,7 +40,6 @@ contract Deploy is Script {
 
     IVaultAPROracle public constant APR_ORACLE = IVaultAPROracle(0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92);
 
-    // @todo -- APR_ORACLE.setOracle(strategy, oracle)
     function run() public {
         uint256 _pk = isTest ? 42069 : vm.envUint("DEPLOYER_PRIVATE_KEY");
         address _deployer = vm.addr(_pk);
@@ -48,7 +47,7 @@ contract Deploy is Script {
         if (!isTest) {
             require(_deployer == DEPLOYER, "!deployer");
 
-            s_asset = WSTETH;
+            s_asset = WETH;
             s_lenderVault = LENDER_VAULT;
             s_management = SMS;
             s_performanceFeeRecipient = PERFORMANCE_FEE_RECIPIENT;
@@ -56,7 +55,7 @@ contract Deploy is Script {
             s_emergencyAdmin = SMS;
         }
 
-        string memory _name = "Curve wstETH Lender crvUSD Borrower";
+        string memory _name = "Curve WETH Lender crvUSD Borrower";
 
         vm.startBroadcast(_pk);
 
@@ -70,6 +69,7 @@ contract Deploy is Script {
             s_newStrategy.setKeeper(s_keeper);
             s_newStrategy.setPendingManagement(s_management);
             s_newStrategy.setEmergencyAdmin(s_emergencyAdmin);
+            s_oracle = StrategyAprOracle(STRATEGY_APR_ORACLE);
         }
 
         // ignore APRs

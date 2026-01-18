@@ -32,6 +32,7 @@ contract Deploy is Script {
 
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+    address public constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
     address public constant LENDER_VAULT = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F; // yvcrvUSD
     address public constant MANAGEMENT = 0x285E3b1E82f74A99D07D2aD25e159E75382bB43B; // johnnyonline.eth
     address public constant YHAAS = 0x604e586F17cE106B64185A7a0d2c1Da5bAce711E; // yHAAS
@@ -47,7 +48,7 @@ contract Deploy is Script {
         if (!isTest) {
             require(_deployer == DEPLOYER, "!deployer");
 
-            s_asset = WETH;
+            s_asset = WBTC;
             s_lenderVault = LENDER_VAULT;
             s_management = SMS;
             s_performanceFeeRecipient = PERFORMANCE_FEE_RECIPIENT;
@@ -55,7 +56,7 @@ contract Deploy is Script {
             s_emergencyAdmin = SMS;
         }
 
-        string memory _name = "Curve WETH Lender crvUSD Borrower";
+        string memory _name = "Curve WBTC Lender crvUSD Borrower";
 
         vm.startBroadcast(_pk);
 
@@ -107,5 +108,7 @@ contract Deploy is Script {
 // wstETH
 // Strategy address: 0x38f4F9aAf92bdCACDFe92eD1e025a66E343b05eC
 
-// WETH -- with price oracle fix
-// Strategy address: 0x48E560AfB1482f63e5e8C0eA7fBdd8Fd82054eC3
+// PROD:
+// WETH - 0x48E560AfB1482f63e5e8C0eA7fBdd8Fd82054eC3
+// wstETH - 0x4727a60cb92bE2660A1BE082E3E830eaEF97f2d0
+// WBTC - 0xBc7998142b446beaE87cfd024A94320907eb64b1

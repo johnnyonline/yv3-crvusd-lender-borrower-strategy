@@ -81,13 +81,37 @@ contract OperationTest is Setup {
         strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
     }
 
-    function _setAllowedSlippageBps_tooHigh(
+    function test_setAllowedSwapSlippageBps_tooHigh(
         uint256 _allowedSwapSlippageBps
     ) public {
         vm.assume(_allowedSwapSlippageBps > MAX_BPS);
         vm.prank(management);
         vm.expectRevert("!allowedSwapSlippageBps");
         strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+    }
+
+    function test_operation_dontAllowSwapSlippage(
+        uint256 _amount
+    ) public {
+        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        // Earn Interest
+        skip(1 days);
+
+        // Airdrop some to avoid dust errors
+        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
+
+        // Set slippage to 0% allowed
+        vm.prank(management);
+        strategy.setAllowedSwapSlippageBps(MAX_BPS);
+
+        // Report profit
+        vm.prank(keeper);
+        vm.expectRevert("slippage rekt you");
+        strategy.report();
     }
 
     function test_operation(

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.23;
 
-import {IAMM, IController, IControllerFactory} from "./interfaces/IControllerFactory.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
+import {IExchange} from "./interfaces/IExchange.sol";
 import {IVaultAPROracle} from "./interfaces/IVaultAPROracle.sol";
+import {IAMM, IController, IControllerFactory} from "./interfaces/IControllerFactory.sol";
 
 import {BaseLenderBorrower, ERC20, SafeERC20} from "./BaseLenderBorrower.sol";
 
@@ -13,6 +16,10 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
     // Storage
     // ===============================================================
+
+    /// @notice Allowed slippage (in basis points) when swapping tokens
+    /// @dev Initialized to `9_500` (5%) in the constructor
+    uint256 public allowedSwapSlippageBps;
 
     /// @notice Indicates if a loan was created or should be created
     bool public loanExists;
@@ -27,12 +34,6 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // Constants
     // ===============================================================
 
-    /// @notice The index of the borrowed token in the AMM
-    uint256 public immutable CRVUSD_INDEX;
-
-    /// @notice The index of the asset in the AMM
-    uint256 public immutable ASSET_INDEX;
-
     /// @notice The amplification, the measure of how concentrated the tick is
     uint256 public immutable A;
 
@@ -42,14 +43,26 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @notice The maximum active band when repaying
     int256 private constant MAX_ACTIVE_BAND = 2 ** 255 - 1;
 
-    /// @notice The difference in decimals between the AMM price (1e18) and our price (1e8)
+    /// @notice The difference in decimals between the AMM price oracle (1e18) and our price (1e8)
     uint256 private constant DECIMALS_DIFF = 1e10;
+
+    /// @notice The price precision used when converting between asset and borrow token
+    uint256 private constant SCALED_PRICE_PRECISION = 1e36;
+
+    /// @notice The precision of the `getPrice` function
+    uint256 private constant GET_PRICE_PRECISION = 1e8;
+
+    /// @notice The scale applied to the `getPrice` function when converting between asset and borrow token
+    uint256 private immutable GET_PRICE_SCALE_FACTOR; // 10^(36 + borrow_decimals - asset_decimals)
 
     /// @notice The number of seconds in a year
     uint256 private constant SECONDS_IN_YEAR = 365 days;
 
     /// @notice The governance address
     address public constant GOV = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
+
+    /// @notice The exchange contract for buying/selling the borrow token
+    IExchange public immutable EXCHANGE;
 
     /// @notice The AMM contract
     IAMM public immutable AMM;
@@ -70,32 +83,48 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @notice Constructor
     /// @param _asset The strategy's asset
-    /// @param _name The strategy's name
     /// @param _lenderVault The address of the lender vault
+    /// @param _exchange The exchange contract for buying/selling borrow token
+    /// @param _name The strategy's name
     constructor(
         address _asset,
-        string memory _name,
-        address _lenderVault
+        address _lenderVault,
+        address _exchange,
+        string memory _name
     ) BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault) {
+        EXCHANGE = IExchange(_exchange);
+        require(EXCHANGE.BORROW() == borrowToken && EXCHANGE.COLLATERAL() == address(asset), "!exchange");
+
         AMM = CONTROLLER_FACTORY.get_amm(_asset);
         CONTROLLER = CONTROLLER_FACTORY.get_controller(_asset);
 
         A = AMM.A();
 
-        CRVUSD_INDEX = AMM.coins(0) == _asset ? 1 : 0;
-        ASSET_INDEX = CRVUSD_INDEX == 1 ? 0 : 1;
+        GET_PRICE_SCALE_FACTOR = 10 ** (36 + IERC20Metadata(borrowToken).decimals() - IERC20Metadata(_asset).decimals());
+
+        allowedSwapSlippageBps = 9500; // 5%
 
         asset.forceApprove(address(CONTROLLER), type(uint256).max);
-        asset.forceApprove(address(AMM), type(uint256).max);
+        asset.forceApprove(address(EXCHANGE), type(uint256).max);
 
         ERC20 _borrowToken = ERC20(borrowToken);
         _borrowToken.forceApprove(address(CONTROLLER), type(uint256).max);
-        _borrowToken.forceApprove(address(AMM), type(uint256).max);
+        _borrowToken.forceApprove(address(EXCHANGE), type(uint256).max);
     }
 
     // ===============================================================
     // Management functions
     // ===============================================================
+
+    /// @notice Set the allowed swap slippage (in basis points)
+    /// @dev E.g., 9_500 = 5% slippage allowed
+    /// @param _allowedSwapSlippageBps The allowed swap slippage
+    function setAllowedSwapSlippageBps(
+        uint256 _allowedSwapSlippageBps
+    ) external onlyManagement {
+        require(_allowedSwapSlippageBps <= MAX_BPS, "!allowedSwapSlippageBps");
+        allowedSwapSlippageBps = _allowedSwapSlippageBps;
+    }
 
     /// @notice Set the loanExists flag to false
     function resetLoanExists() external onlyManagement {
@@ -302,7 +331,21 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function _sellBorrowToken(
         uint256 _amount
     ) internal virtual override {
-        AMM.exchange(CRVUSD_INDEX, ASSET_INDEX, _amount, 0);
+        // Scale price to 1e36
+        uint256 _scaledPrice = _getPrice(address(asset)) * GET_PRICE_SCALE_FACTOR / GET_PRICE_PRECISION;
+
+        // Calculate the expected amount of collateral out in collateral token precision
+        uint256 _expectedAmountOut = _amount * SCALED_PRICE_PRECISION / _scaledPrice;
+
+        // Apply slippage tolerance
+        uint256 _minAmountOut = _expectedAmountOut * allowedSwapSlippageBps / MAX_BPS;
+
+        // Swap away
+        EXCHANGE.swap(
+            _amount,
+            _minAmountOut, // minAmount
+            true // fromBorrow
+        );
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -317,7 +360,21 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function _buyBorrowToken(
         uint256 _amount
     ) internal {
-        AMM.exchange(ASSET_INDEX, CRVUSD_INDEX, _amount, 0);
+        // Scale price to 1e36
+        uint256 _scaledPrice = _getPrice(address(asset)) * GET_PRICE_SCALE_FACTOR / GET_PRICE_PRECISION;
+
+        // Calculate the expected amount of borrow token out
+        uint256 _expectedAmountOut = _amount * _scaledPrice / SCALED_PRICE_PRECISION;
+
+        // Apply slippage tolerance
+        uint256 _minAmountOut = _expectedAmountOut * allowedSwapSlippageBps / MAX_BPS;
+
+        // Swap away
+        EXCHANGE.swap(
+            _amount,
+            _minAmountOut, // minAmount
+            false // fromBorrow
+        );
     }
 
     /// @notice Sweep of non-asset ERC20 tokens to governance

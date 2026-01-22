@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.18;
 
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 import "forge-std/console2.sol";
 import "../../../script/Deploy.s.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
@@ -40,6 +42,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
     IStrategyInterface public strategy;
+    IExchange public exchange;
 
     address public borrowToken;
 
@@ -79,6 +82,13 @@ contract Setup is Deploy, ExtendedTest, IEvents {
 
         // Set asset
         asset = ERC20(tokenAddrs["WETH"]);
+        // asset = ERC20(tokenAddrs["WBTC"]);
+        // asset = ERC20(tokenAddrs["wstETH"]);
+
+        if (address(asset) == tokenAddrs["WBTC"]) {
+            maxFuzzAmount = 1e8; // 1 WBTC
+            minFuzzAmount = 1e4; // 0.0001 WBTC
+        }
 
         // Set decimals
         decimals = asset.decimals();
@@ -116,6 +126,7 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         isTest = true;
         // deploy and initialize contracts
         run();
+        exchange = s_exchange;
         // we save the strategy as a IStrategyInterface to give it the needed interface
         IStrategyInterface _strategy = s_newStrategy;
 
@@ -252,7 +263,8 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         }
 
         // Get amount of crvUSD we need to clear out the collateral
-        uint256 dx = amm.get_dx(0, 1, totalCollateralToBuy);
+        uint256 decimalsDiff = 18 - IERC20Metadata(address(strategy.asset())).decimals();
+        uint256 dx = amm.get_dx(0, 1, totalCollateralToBuy / 10 ** decimalsDiff);
 
         // Setup the arbitragooor
         address arbitragooor = address(69);

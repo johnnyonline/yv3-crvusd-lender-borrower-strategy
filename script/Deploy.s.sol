@@ -4,8 +4,14 @@ pragma solidity ^0.8.18;
 import "forge-std/Script.sol";
 
 import {IStrategyInterface} from "../src/interfaces/IStrategyInterface.sol";
-import {StrategyAprOracle} from "../src/periphery/StrategyAprOracle.sol";
 import {IVaultAPROracle} from "../src/interfaces/IVaultAPROracle.sol";
+import {IExchange} from "../src/interfaces/IExchange.sol";
+
+import {StrategyAprOracle} from "../src/periphery/StrategyAprOracle.sol";
+import {WETHToCRVUSDExchange as Exchange} from "../src/periphery/WETHToCRVUSDExchange.sol";
+// import {WBTCToCRVUSDExchange as Exchange} from "../src/periphery/WBTCToCRVUSDExchange.sol";
+// import {WSTETHToCRVUSDExchange as Exchange} from "../src/periphery/WSTETHToCRVUSDExchange.sol";
+
 import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
 
 // ---- Usage ----
@@ -22,6 +28,7 @@ contract Deploy is Script {
     address public s_performanceFeeRecipient;
     address public s_keeper;
     address public s_emergencyAdmin;
+    IExchange public s_exchange;
     StrategyAprOracle public s_oracle;
     IStrategyInterface public s_newStrategy;
 
@@ -48,7 +55,7 @@ contract Deploy is Script {
         if (!isTest) {
             require(_deployer == DEPLOYER, "!deployer");
 
-            s_asset = WBTC;
+            s_asset = WETH;
             s_lenderVault = LENDER_VAULT;
             s_management = SMS;
             s_performanceFeeRecipient = PERFORMANCE_FEE_RECIPIENT;
@@ -56,16 +63,18 @@ contract Deploy is Script {
             s_emergencyAdmin = SMS;
         }
 
-        string memory _name = "Curve WBTC Lender crvUSD Borrower";
+        string memory _name = "Curve WETH Lender crvUSD Borrower";
 
         vm.startBroadcast(_pk);
 
         // deploy
-        s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, _name, s_lenderVault)));
+        s_exchange = IExchange(address(new Exchange()));
         // s_oracle = new StrategyAprOracle();
+        s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, s_lenderVault, address(s_exchange), _name)));
 
         // init
         if (isTest) {
+            // @todo -- run this on deployment too!!!
             s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
             s_newStrategy.setKeeper(s_keeper);
             s_newStrategy.setPendingManagement(s_management);
@@ -85,6 +94,7 @@ contract Deploy is Script {
         vm.stopBroadcast();
 
         if (!isTest) {
+            console.log("Exchange address: %s", address(s_exchange));
             // console.log("Oracle address: %s", address(s_oracle));
             console.log("Strategy address: %s", address(s_newStrategy));
         }

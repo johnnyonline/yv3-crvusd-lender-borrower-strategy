@@ -21,8 +21,7 @@ contract OperationTest is Setup {
         assertEq(strategy.management(), management);
         assertEq(strategy.performanceFeeRecipient(), performanceFeeRecipient);
         assertEq(strategy.keeper(), keeper);
-        assertEq(strategy.CRVUSD_INDEX(), 0);
-        assertEq(strategy.ASSET_INDEX(), 1);
+        assertEq(strategy.EXCHANGE(), address(exchange));
         assertEq(strategy.AMM(), address(IControllerFactory(strategy.CONTROLLER_FACTORY()).get_amm(address(asset))));
         assertEq(
             strategy.CONTROLLER(),
@@ -63,6 +62,34 @@ contract OperationTest is Setup {
         test_operation(_amount);
     }
 
+    function test_setAllowedSwapSlippageBps(
+        uint256 _allowedSwapSlippageBps
+    ) public {
+        vm.assume(_allowedSwapSlippageBps <= MAX_BPS);
+        vm.prank(management);
+        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+        assertEq(strategy.allowedSwapSlippageBps(), _allowedSwapSlippageBps);
+    }
+
+    function test_setAllowedSwapSlippageBps_wrongCaller(
+        address _wrongCaller,
+        uint256 _allowedSwapSlippageBps
+    ) public {
+        vm.assume(_wrongCaller != management);
+        vm.expectRevert("!management");
+        vm.prank(_wrongCaller);
+        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+    }
+
+    function _setAllowedSlippageBps_tooHigh(
+        uint256 _allowedSwapSlippageBps
+    ) public {
+        vm.assume(_allowedSwapSlippageBps > MAX_BPS);
+        vm.prank(management);
+        vm.expectRevert("!allowedSwapSlippageBps");
+        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+    }
+
     function test_operation(
         uint256 _amount
     ) public {
@@ -80,6 +107,9 @@ contract OperationTest is Setup {
 
         // Earn Interest
         skip(1 days);
+
+        // Airdrop some to avoid dust errors
+        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
 
         // Report profit
         vm.prank(keeper);
@@ -112,6 +142,9 @@ contract OperationTest is Setup {
 
         // Earn Interest
         skip(1 days);
+
+        // Airdrop some to avoid dust errors
+        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
 
         // Report profit
         vm.prank(keeper);
@@ -151,6 +184,9 @@ contract OperationTest is Setup {
 
         // Earn Interest
         skip(1 days);
+
+        // Airdrop some to avoid dust errors
+        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
 
         // Report profit
         vm.prank(keeper);
@@ -581,6 +617,9 @@ contract OperationTest is Setup {
         // Earn Interest
         skip(1 days);
 
+        // Airdrop some to avoid dust errors
+        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
+
         // Report profit
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
@@ -623,8 +662,8 @@ contract OperationTest is Setup {
         (trigger,) = strategy.tendTrigger();
         assertFalse(trigger);
 
-        // Airdrop dust to report properly
-        airdrop(asset, address(strategy), 5);
+        // Airdrop some to report properly
+        airdrop(ERC20(strategy.borrowToken()), address(strategy), 10 ether);
 
         // So report will lever back up
         vm.prank(keeper);
@@ -698,8 +737,8 @@ contract OperationTest is Setup {
         // Check debt, collateral and LTV balances after SL
         assertEq(strategy.balanceOfDebt(), debtBeforeSL, "!same debt");
         assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!tvl increased");
-        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!tvl above warning threshold");
+        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!ltv increased");
+        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!ltv above warning threshold");
 
         // Make sure we are not hard liquidatable but in SL
         assertFalse(isHardLiquidatable(), "isHardLiquidatable");
@@ -801,8 +840,8 @@ contract OperationTest is Setup {
         // Check debt, collateral and LTV balances after SL
         assertEq(strategy.balanceOfDebt(), debtBeforeSL, "!same debt");
         assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!tvl increased");
-        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!tvl above warning threshold");
+        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!ltv increased");
+        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!ltv above warning threshold");
 
         // Make sure we are not hard liquidatable but in SL
         assertFalse(isHardLiquidatable(), "isHardLiquidatable");
@@ -829,7 +868,7 @@ contract OperationTest is Setup {
         assertGt(strategy.balanceOfAsset(), 0, "!asset"); // We should have some `asset` collateral, the rest is in crvUSD
         assertApproxEq(strategy.balanceOfLentAssets(), 0, 3, "!lent"); // We should have used everything to repay the debt
         assertGt(strategy.balanceOfBorrowToken(), 0, "!borrowToken"); // Some of the collateral was converted to crvUSD
-        assertEq(strategy.getCurrentLTV(), 0, "!tvl");
+        assertEq(strategy.getCurrentLTV(), 0, "!ltv");
         assertFalse(strategy.loanExists(), "!loanExists");
     }
 
@@ -866,8 +905,8 @@ contract OperationTest is Setup {
         // Check debt, collateral and LTV balances after SL
         assertEq(balanceOfDebtAfterSL_beforeDeposit, debtBeforeSL, "!same debt");
         assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!tvl increased");
-        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!tvl above warning threshold");
+        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!ltv increased");
+        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!ltv above warning threshold");
 
         // Check total assets after SL
         assertEq(strategy.totalAssets(), totalAssetsBeforeSL, "!totalAssets");
@@ -878,7 +917,7 @@ contract OperationTest is Setup {
         // Check debt, collateral and LTV balances after SL and after another deposit
         assertLt(strategy.balanceOfDebt(), balanceOfDebtAfterSL_beforeDeposit, "!less debt"); // We repay some debt, bc balanceOfCollateral seems lower, as some was converted to crvUSD
         assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000); // TVL should seem fixed now, as we repaid some debt
+        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000); // ltv should seem fixed now, as we repaid some debt
 
         // Check total assets after SL and after another deposit
         assertEq(strategy.totalAssets(), totalAssetsBeforeSL + _amount, "!totalAssets");
@@ -916,8 +955,8 @@ contract OperationTest is Setup {
         // Check debt, collateral and LTV balances after HL
         assertEq(strategy.balanceOfDebt(), debtBeforeHL, "!same debt");
         assertEq(strategy.balanceOfCollateral(), collBeforeHL, "!same collateral"); // None of the collateral was converted to crvUSD
-        assertGt(strategy.getCurrentLTV(), ltvBeforeHL, "!tvl increased");
-        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!tvl above warning threshold");
+        assertGt(strategy.getCurrentLTV(), ltvBeforeHL, "!ltv increased");
+        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!ltv above warning threshold");
 
         // Make sure we are not hard liquidatable but in SL
         assertTrue(isHardLiquidatable(), "!isHardLiquidatable");
@@ -945,6 +984,10 @@ contract OperationTest is Setup {
 
         // Make our lives a bit easier
         setFees(0, 0);
+
+        // Don't check slippage
+        vm.prank(management);
+        strategy.setAllowedSwapSlippageBps(0);
 
         // Go degen so we're closer to HL
         vm.prank(management);

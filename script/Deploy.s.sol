@@ -8,8 +8,8 @@ import {IVaultAPROracle} from "../src/interfaces/IVaultAPROracle.sol";
 import {IExchange} from "../src/interfaces/IExchange.sol";
 
 import {StrategyAprOracle} from "../src/periphery/StrategyAprOracle.sol";
-// import {WETHToCRVUSDExchange as Exchange} from "../src/periphery/WETHToCRVUSDExchange.sol";
-import {WBTCToCRVUSDExchange as Exchange} from "../src/periphery/WBTCToCRVUSDExchange.sol";
+import {WETHToCRVUSDExchange as Exchange} from "../src/periphery/WETHToCRVUSDExchange.sol";
+// import {WBTCToCRVUSDExchange as Exchange} from "../src/periphery/WBTCToCRVUSDExchange.sol";
 // import {WSTETHToCRVUSDExchange as Exchange} from "../src/periphery/WSTETHToCRVUSDExchange.sol";
 
 import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
@@ -55,9 +55,9 @@ contract Deploy is Script {
         if (!isTest) {
             require(_deployer == DEPLOYER, "!deployer");
 
-            // s_asset = WETH;
+            s_asset = WETH;
             // s_asset = WSTETH;
-            s_asset = WBTC;
+            // s_asset = WBTC;
             s_lenderVault = LENDER_VAULT;
             s_management = SMS;
             s_performanceFeeRecipient = PERFORMANCE_FEE_RECIPIENT;
@@ -65,9 +65,9 @@ contract Deploy is Script {
             s_emergencyAdmin = SMS;
         }
 
-        // string memory _name = "Curve WETH/crvUSD Lender Borrower";
+        string memory _name = "Curve WETH/crvUSD Lender Borrower";
         // string memory _name = "Curve wstETH/crvUSD Lender Borrower";
-        string memory _name = "Curve WBTC/crvUSD Lender Borrower";
+        // string memory _name = "Curve WBTC/crvUSD Lender Borrower";
 
         vm.startBroadcast(_pk);
 

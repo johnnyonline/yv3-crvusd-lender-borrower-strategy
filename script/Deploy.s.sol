@@ -8,8 +8,8 @@ import {IVaultAPROracle} from "../src/interfaces/IVaultAPROracle.sol";
 import {IExchange} from "../src/interfaces/IExchange.sol";
 
 import {StrategyAprOracle} from "../src/periphery/StrategyAprOracle.sol";
-import {WETHToCRVUSDExchange as Exchange} from "../src/periphery/WETHToCRVUSDExchange.sol";
-// import {WBTCToCRVUSDExchange as Exchange} from "../src/periphery/WBTCToCRVUSDExchange.sol";
+// import {WETHToCRVUSDExchange as Exchange} from "../src/periphery/WETHToCRVUSDExchange.sol";
+import {WBTCToCRVUSDExchange as Exchange} from "../src/periphery/WBTCToCRVUSDExchange.sol";
 // import {WSTETHToCRVUSDExchange as Exchange} from "../src/periphery/WSTETHToCRVUSDExchange.sol";
 
 import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
@@ -17,7 +17,7 @@ import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
 // ---- Usage ----
 
 // deploy:
-// forge script script/Deploy.s.sol:Deploy --verify -g 200 --slow --legacy --etherscan-api-key $KEY --rpc-url $RPC_URL --broadcast
+// forge script script/Deploy.s.sol:Deploy --verify -g 250 --slow --etherscan-api-key $KEY --rpc-url $RPC_URL --broadcast
 
 contract Deploy is Script {
 
@@ -55,7 +55,9 @@ contract Deploy is Script {
         if (!isTest) {
             require(_deployer == DEPLOYER, "!deployer");
 
-            s_asset = WETH;
+            // s_asset = WETH;
+            // s_asset = WSTETH;
+            s_asset = WBTC;
             s_lenderVault = LENDER_VAULT;
             s_management = SMS;
             s_performanceFeeRecipient = PERFORMANCE_FEE_RECIPIENT;
@@ -63,7 +65,9 @@ contract Deploy is Script {
             s_emergencyAdmin = SMS;
         }
 
-        string memory _name = "Curve WETH Lender crvUSD Borrower";
+        // string memory _name = "Curve WETH/crvUSD Lender Borrower";
+        // string memory _name = "Curve wstETH/crvUSD Lender Borrower";
+        string memory _name = "Curve WBTC/crvUSD Lender Borrower";
 
         vm.startBroadcast(_pk);
 
@@ -73,14 +77,11 @@ contract Deploy is Script {
         s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, s_lenderVault, address(s_exchange), _name)));
 
         // init
-        if (isTest) {
-            // @todo -- run this on deployment too!!!
-            s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
-            s_newStrategy.setKeeper(s_keeper);
-            s_newStrategy.setPendingManagement(s_management);
-            s_newStrategy.setEmergencyAdmin(s_emergencyAdmin);
-            s_oracle = StrategyAprOracle(STRATEGY_APR_ORACLE);
-        }
+        s_newStrategy.setPerformanceFeeRecipient(s_performanceFeeRecipient);
+        s_newStrategy.setKeeper(s_keeper);
+        s_newStrategy.setPendingManagement(s_management);
+        s_newStrategy.setEmergencyAdmin(s_emergencyAdmin);
+        s_oracle = StrategyAprOracle(STRATEGY_APR_ORACLE);
 
         // ignore APRs
         if (!isTest) {
@@ -122,3 +123,8 @@ contract Deploy is Script {
 // WETH - 0x48E560AfB1482f63e5e8C0eA7fBdd8Fd82054eC3
 // wstETH - 0x4727a60cb92bE2660A1BE082E3E830eaEF97f2d0
 // WBTC - 0xBc7998142b446beaE87cfd024A94320907eb64b1
+
+// PROD (really):
+// WETH - 0xf6151034BEc135059E5A6Ccff43317652960ad41
+// wstETH - 0xB3ef10D305A6CdbC5f19244de528d025F856EF6A
+// WBTC - 0x5cee43aa4Beb43E114C50d2127b206a6b95F1151

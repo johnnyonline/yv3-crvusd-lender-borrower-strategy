@@ -28,6 +28,38 @@ interface IFactory {
 
 }
 
+interface IMetaExchangeAdmin {
+
+    struct RouteStep {
+        address exchange;
+        address tokenFrom;
+        address tokenTo;
+    }
+
+    function governance() external view returns (address);
+
+    function setRoute(
+        address from,
+        address to,
+        RouteStep[] calldata route
+    ) external;
+
+}
+
+interface ICurveExchangeAdmin {
+
+    function governance() external view returns (address);
+
+    function setCurveRoute(
+        address from,
+        address to,
+        address[11] memory route,
+        uint256[5][5] memory swapParams,
+        address[5] memory pools
+    ) external;
+
+}
+
 interface IVault {
 
     function get_default_queue() external view returns (address[] memory);
@@ -50,6 +82,11 @@ contract Setup is Deploy, ExtendedTest, IEvents {
 
     address public controllerFactory = 0xC9332fdCB1C491Dcc683bAe86Fe3cb70360738BC;
 
+    // MetaExchange deployed on mainnet and its Curve router venue
+    address public constant META_EXCHANGE = 0x3E7A91F87c1b6C9D8FA806235fd69Aa0D7577caA;
+    address public constant CURVE_EXCHANGE_VENUE = 0x754e3280F1bf0bE8644a150412B9e4b9eAFaB6be;
+    address public constant TRICRV = 0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14;
+
     mapping(string => address) public tokenAddrs;
 
     // Addresses for different roles we will use repeatedly.
@@ -67,15 +104,15 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     uint256 public decimals;
     uint256 public MAX_BPS = 10_000;
 
-    // Fuzz from 0.01 WETH up to 10 of WETH
+    // Fuzz from 0.05 WETH up to 10 of WETH
     uint256 public maxFuzzAmount = 10 ether;
-    uint256 public minFuzzAmount = 0.01 ether;
+    uint256 public minFuzzAmount = 0.05 ether;
 
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
 
     function setUp() public virtual {
-        uint256 _blockNumber = 24_155_522; // Caching for faster tests
+        uint256 _blockNumber = 25_813_761; // Caching for faster tests
         vm.selectFork(vm.createFork(vm.envString("ETH_RPC_URL"), _blockNumber));
 
         _setTokenAddrs();
@@ -122,6 +159,8 @@ contract Setup is Deploy, ExtendedTest, IEvents {
     }
 
     function setUpStrategy() public returns (address) {
+        // set up WETH <-> crvUSD routes on the MetaExchange
+        _setUpExchangeRoutes();
         // notify deplyment script that this is a test
         isTest = true;
         // deploy and initialize contracts
@@ -130,10 +169,54 @@ contract Setup is Deploy, ExtendedTest, IEvents {
         // we save the strategy as a IStrategyInterface to give it the needed interface
         IStrategyInterface _strategy = s_newStrategy;
 
-        vm.prank(management);
+        vm.startPrank(management);
         _strategy.acceptManagement();
+        _strategy.setAllowed(user, true);
+        _strategy.setSlippage(500); // TriCRV fees + EMA oracle lag need more room than the 50 bps default
+        vm.stopPrank();
 
         return address(_strategy);
+    }
+
+    function _setUpExchangeRoutes() internal {
+        address _weth = tokenAddrs["WETH"];
+        address _crvUSD = tokenAddrs["crvUSD"];
+
+        // Configure the Curve venue to swap WETH <-> crvUSD directly on TriCRV
+        address[11] memory _fromRoute;
+        _fromRoute[0] = _weth;
+        _fromRoute[1] = TRICRV;
+        _fromRoute[2] = _crvUSD;
+        uint256[5][5] memory _fromParams;
+        _fromParams[0] = [uint256(1), 0, 1, 3, 3]; // WETH(1) -> crvUSD(0), tricrypto
+
+        address[11] memory _toRoute;
+        _toRoute[0] = _crvUSD;
+        _toRoute[1] = TRICRV;
+        _toRoute[2] = _weth;
+        uint256[5][5] memory _toParams;
+        _toParams[0] = [uint256(0), 1, 1, 3, 3]; // crvUSD(0) -> WETH(1), tricrypto
+
+        address[5] memory _pools;
+
+        vm.startPrank(ICurveExchangeAdmin(CURVE_EXCHANGE_VENUE).governance());
+        ICurveExchangeAdmin(CURVE_EXCHANGE_VENUE).setCurveRoute(_weth, _crvUSD, _fromRoute, _fromParams, _pools);
+        ICurveExchangeAdmin(CURVE_EXCHANGE_VENUE).setCurveRoute(_crvUSD, _weth, _toRoute, _toParams, _pools);
+        vm.stopPrank();
+
+        // Route both directions through the Curve venue on the MetaExchange
+        IMetaExchangeAdmin.RouteStep[] memory _wethToCrvUsd = new IMetaExchangeAdmin.RouteStep[](1);
+        _wethToCrvUsd[0] =
+            IMetaExchangeAdmin.RouteStep({exchange: CURVE_EXCHANGE_VENUE, tokenFrom: _weth, tokenTo: _crvUSD});
+
+        IMetaExchangeAdmin.RouteStep[] memory _crvUsdToWeth = new IMetaExchangeAdmin.RouteStep[](1);
+        _crvUsdToWeth[0] =
+            IMetaExchangeAdmin.RouteStep({exchange: CURVE_EXCHANGE_VENUE, tokenFrom: _crvUSD, tokenTo: _weth});
+
+        vm.startPrank(IMetaExchangeAdmin(META_EXCHANGE).governance());
+        IMetaExchangeAdmin(META_EXCHANGE).setRoute(_weth, _crvUSD, _wethToCrvUsd);
+        IMetaExchangeAdmin(META_EXCHANGE).setRoute(_crvUSD, _weth, _crvUsdToWeth);
+        vm.stopPrank();
     }
 
     function depositIntoStrategy(

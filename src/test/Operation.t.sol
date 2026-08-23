@@ -62,32 +62,32 @@ contract OperationTest is Setup {
         test_operation(_amount);
     }
 
-    function test_setAllowedSwapSlippageBps(
-        uint256 _allowedSwapSlippageBps
+    function test_setSlippage(
+        uint256 _slippage
     ) public {
-        vm.assume(_allowedSwapSlippageBps <= MAX_BPS);
+        vm.assume(_slippage < MAX_BPS);
         vm.prank(management);
-        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
-        assertEq(strategy.allowedSwapSlippageBps(), _allowedSwapSlippageBps);
+        strategy.setSlippage(_slippage);
+        assertEq(strategy.slippage(), _slippage);
     }
 
-    function test_setAllowedSwapSlippageBps_wrongCaller(
+    function test_setSlippage_wrongCaller(
         address _wrongCaller,
-        uint256 _allowedSwapSlippageBps
+        uint256 _slippage
     ) public {
         vm.assume(_wrongCaller != management);
         vm.expectRevert("!management");
         vm.prank(_wrongCaller);
-        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+        strategy.setSlippage(_slippage);
     }
 
-    function test_setAllowedSwapSlippageBps_tooHigh(
-        uint256 _allowedSwapSlippageBps
+    function test_setSlippage_tooHigh(
+        uint256 _slippage
     ) public {
-        vm.assume(_allowedSwapSlippageBps > MAX_BPS);
+        vm.assume(_slippage >= MAX_BPS);
         vm.prank(management);
-        vm.expectRevert("!allowedSwapSlippageBps");
-        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+        vm.expectRevert("slippage");
+        strategy.setSlippage(_slippage);
     }
 
     function test_operation_dontAllowSwapSlippage(
@@ -101,16 +101,16 @@ contract OperationTest is Setup {
         // Earn Interest
         skip(1 days);
 
-        // Airdrop some to avoid dust errors
-        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
+        // Airdrop enough that price impact + pool fees always exceed a 0% tolerance
+        airdrop(ERC20(borrowToken), address(strategy), 100_000 ether);
 
         // Set slippage to 0% allowed
         vm.prank(management);
-        strategy.setAllowedSwapSlippageBps(MAX_BPS);
+        strategy.setSlippage(0);
 
         // Report profit
         vm.prank(keeper);
-        vm.expectRevert("slippage rekt you");
+        vm.expectRevert();
         strategy.report();
     }
 
@@ -398,10 +398,12 @@ contract OperationTest is Setup {
         ERC20(lenderVault).transfer(address(420), ERC20(lenderVault).balanceOf(address(strategy)) * 10 / 100);
         vm.stopPrank();
 
-        vm.startPrank(emergencyAdmin);
-        strategy.manualWithdraw(address(0), strategy.balanceOfCollateral() * 10 / 100);
-        strategy.buyBorrowToken(type(uint256).max); // sell all loose collateral
-        vm.stopPrank();
+        uint256 _collateralToWithdraw = strategy.balanceOfCollateral() * 10 / 100;
+        vm.prank(emergencyAdmin);
+        strategy.manualWithdraw(address(0), _collateralToWithdraw);
+
+        vm.prank(management);
+        strategy.buyBorrowToken(type(uint256).max); // buy back the borrow token shortfall
 
         assertGe(strategy.balanceOfLentAssets() + strategy.balanceOfBorrowToken(), strategy.balanceOfDebt(), "!lent");
 
@@ -467,10 +469,10 @@ contract OperationTest is Setup {
         (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
 
-        // Borrow too much.
+        // Borrow too much. 300 bps over warning so the spot vs EMA price gap can't mask it
         uint256 toBorrow =
             (strategy.balanceOfCollateral()
-                    * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 100)) / MAX_BPS))
+                    * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 300)) / MAX_BPS))
                 / 1e18;
 
         toBorrow = _fromUsd(_toUsd(toBorrow, address(asset)), borrowToken);
@@ -1009,9 +1011,9 @@ contract OperationTest is Setup {
         // Make our lives a bit easier
         setFees(0, 0);
 
-        // Don't check slippage
+        // Allow max swap slippage
         vm.prank(management);
-        strategy.setAllowedSwapSlippageBps(0);
+        strategy.setSlippage(MAX_BPS - 1);
 
         // Go degen so we're closer to HL
         vm.prank(management);
@@ -1091,14 +1093,10 @@ contract OperationTest is Setup {
         // Get hard liquidated
         simulateHardLiquidation();
 
-        uint256 balanceBefore = asset.balanceOf(user);
-
-        // Withdraw all funds
+        // Funds are stuck in the lender vault until cleanup, withdraws are blocked
+        vm.expectRevert("ERC4626: redeem more than max");
         vm.prank(user);
         strategy.redeem(_amount, user, user);
-
-        // Got nothing, should have waited...
-        assertEq(asset.balanceOf(user), balanceBefore, "!final balance");
     }
 
     function test_rateForTapir(

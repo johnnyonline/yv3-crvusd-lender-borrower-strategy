@@ -108,11 +108,12 @@ contract ShutdownTest is Setup {
         vm.prank(management);
         strategy.manualWithdraw(address(borrowToken), balance);
 
-        assertEq(strategy.balanceOfLentAssets(), 0);
-        assertEq(ERC20(borrowToken).balanceOf(address(strategy)), balance);
+        // Lender vault liquidity can leave a small residual behind
+        assertLe(strategy.balanceOfLentAssets(), balance / 1000, "!lent residual");
+        assertRelApproxEq(ERC20(borrowToken).balanceOf(address(strategy)), balance, 10);
         assertRelApproxEq(strategy.getCurrentLTV(), ltv, 10);
 
-        vm.expectRevert("!emergency authorized");
+        vm.expectRevert("!keeper");
         vm.prank(user);
         strategy.claimAndSellRewards();
 
@@ -128,8 +129,9 @@ contract ShutdownTest is Setup {
 
         assertFalse(IController(strategy.CONTROLLER()).loan_exists(address(strategy)));
         assertEq(strategy.balanceOfCollateral(), 0);
-        assertEq(strategy.balanceOfLentAssets(), 0);
-        assertEq(ERC20(borrowToken).balanceOf(address(strategy)), 0);
+        // Excess borrow token is settled at report now, so closing manually can leave dust behind
+        assertLe(strategy.balanceOfLentAssets(), balance / 1000, "!lent dust");
+        assertLe(ERC20(borrowToken).balanceOf(address(strategy)), balance / 1000, "!loose dust");
         assertEq(strategy.getCurrentLTV(), 0);
         assertFalse(strategy.loanExists());
 

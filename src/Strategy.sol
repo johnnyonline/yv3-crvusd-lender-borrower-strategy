@@ -273,14 +273,6 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    /// @dev Skip dust deposits so the lender vault can't revert on zero-share mints
-    function _lendBorrowToken(
-        uint256 amount
-    ) internal override {
-        if (amount > 1) lenderVault.deposit(amount, address(this));
-    }
-
-    /// @inheritdoc BaseLenderBorrower
     function _claimAndSellRewards() internal pure override {
         return;
     }

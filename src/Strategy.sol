@@ -305,7 +305,7 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         ERC20 _token
     ) external {
         require(msg.sender == GOV, "!gov");
-        require(_token != asset, "!asset");
+        require(_token != asset && address(_token) != borrowToken && address(_token) != address(lenderVault), "!asset");
         _token.safeTransfer(GOV, _token.balanceOf(address(this)));
     }
 

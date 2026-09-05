@@ -931,9 +931,30 @@ contract OperationTest is Setup {
         vm.prank(management);
         strategy.tend();
 
-        // Out of SL, deposits are open again
+        // Out of SL, but still blocked until the report sells the returned crvUSD and accounts for the loss
         assertFalse(isSoftLiquidatable(), "isSoftLiquidatable");
+        assertTrue(strategy.recoveringFromSoftLiquidation(), "!recovering");
+        assertEq(strategy.availableDepositLimit(user), 0, "available deposit limit after tend");
+        assertEq(strategy.availableWithdrawLimit(user), 0, "available withdraw limit after tend");
+
+        // (almost) zero out rewards so the report only sells the crvUSD and does not re-lever,
+        // the AMM price is still depressed by the SL arb here and creating the bands would revert
+        vm.mockCall(
+            address(strategy.VAULT_APR_ORACLE()),
+            abi.encodeWithSelector(IVaultAPROracle.getStrategyApr.selector),
+            abi.encode(1)
+        );
+
+        // Report the loss
+        vm.prank(management);
+        strategy.setDoHealthCheck(false);
+        vm.prank(keeper);
+        strategy.report();
+
+        // Deposits and withdrawals are open again
+        assertFalse(strategy.recoveringFromSoftLiquidation(), "recovering");
         assertGt(strategy.availableDepositLimit(user), 0, "!available deposit limit");
+        assertGt(strategy.availableWithdrawLimit(user), 0, "!available withdraw limit");
     }
 
     function test_getIntoHL(

@@ -8,6 +8,7 @@ interface IStrategyInterface is IStrategy, ILenderBorrower {
 
     function loanExists() external view returns (bool);
     function ignoreBorrowApr() external view returns (bool);
+    function recoveringFromSoftLiquidation() external view returns (bool);
     function ignoreRewardApr() external view returns (bool);
     function EXCHANGE() external view returns (address);
     function AMM() external view returns (address);

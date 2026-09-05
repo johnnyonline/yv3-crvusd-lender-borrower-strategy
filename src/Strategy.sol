@@ -23,6 +23,10 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @notice If true, `getNetRewardApr()` will always return 0
     bool public ignoreRewardApr;
 
+    /// @notice If true, the loan was closed while in soft liquidation and the crvUSD the Controller
+    ///         returned is not yet sold and accounted for. Blocks deposits and withdrawals until the next report
+    bool public recoveringFromSoftLiquidation;
+
     // ===============================================================
     // Constants
     // ===============================================================
@@ -185,7 +189,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function availableWithdrawLimit(
         address _owner
     ) public view override returns (uint256) {
-        return _isInSoftLiquidation() ? 0 : BaseLenderBorrower.availableWithdrawLimit(_owner);
+        // Blocked while in soft liquidation and until the report that accounts for its loss
+        if (_isInSoftLiquidation() || recoveringFromSoftLiquidation) return 0;
+        return BaseLenderBorrower.availableWithdrawLimit(_owner);
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -219,8 +225,10 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @inheritdoc BaseLenderBorrower
     function _maxCollateralDeposit() internal view override returns (uint256) {
-        // The Controller reverts on adding collateral while in soft liquidation
-        return _isInSoftLiquidation() ? 0 : type(uint256).max;
+        // The Controller reverts on adding collateral while in soft liquidation,
+        // and after unwinding we wait for the report that accounts for its loss
+        if (_isInSoftLiquidation() || recoveringFromSoftLiquidation) return 0;
+        return type(uint256).max;
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -263,10 +271,22 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
+    function _harvestAndReport() internal override returns (uint256) {
+        // The report sells the crvUSD the Controller returned and accounts for the soft liquidation loss
+        recoveringFromSoftLiquidation = false;
+        return BaseLenderBorrower._harvestAndReport();
+    }
+
+    /// @inheritdoc BaseLenderBorrower
     function _tend(
         uint256 _totalIdle
     ) internal override {
-        _isInSoftLiquidation() ? _liquidatePosition(balanceOfCollateral()) : BaseLenderBorrower._tend(_totalIdle);
+        if (!_isInSoftLiquidation()) return BaseLenderBorrower._tend(_totalIdle);
+
+        // Close the loan. The Controller returns the remaining collateral and the crvUSD it converted,
+        // which is only sold and accounted for on the next report
+        _liquidatePosition(balanceOfCollateral());
+        recoveringFromSoftLiquidation = true;
     }
 
     /// @inheritdoc BaseLenderBorrower

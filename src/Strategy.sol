@@ -218,13 +218,15 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _maxCollateralDeposit() internal pure override returns (uint256) {
-        return type(uint256).max;
+    function _maxCollateralDeposit() internal view override returns (uint256) {
+        // The Controller reverts on adding collateral while in soft liquidation
+        return _isInSoftLiquidation() ? 0 : type(uint256).max;
     }
 
     /// @inheritdoc BaseLenderBorrower
     function _maxBorrowAmount() internal view override returns (uint256) {
-        return ERC20(borrowToken).balanceOf(address(CONTROLLER));
+        // The Controller reverts on borrowing more while in soft liquidation
+        return _isInSoftLiquidation() ? 0 : ERC20(borrowToken).balanceOf(address(CONTROLLER));
     }
 
     /// @inheritdoc BaseLenderBorrower

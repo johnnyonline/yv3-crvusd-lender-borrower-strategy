@@ -907,46 +907,33 @@ contract OperationTest is Setup {
         vm.prank(management);
         strategy.setLtvMultipliers(uint16(8900), uint16(9000));
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
-
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
-
-        // Check LTV
-        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-
-        // Cache debt, collateral and current LTV balances before SL
-        uint256 debtBeforeSL = strategy.balanceOfDebt();
-        uint256 collBeforeSL = strategy.balanceOfCollateral();
-        uint256 ltvBeforeSL = strategy.getCurrentLTV();
-
-        // Cache total assets before SL
-        uint256 totalAssetsBeforeSL = strategy.totalAssets();
+        assertGt(strategy.availableDepositLimit(user), 0, "!available deposit limit");
 
         // Get into SL, without price nuke, meaning we cannot hard liquidate, only soft
         simulateSoftLiquidation(false);
 
-        uint256 balanceOfDebtAfterSL_beforeDeposit = strategy.balanceOfDebt();
+        // The Controller reverts on add_collateral / borrow_more while in SL, so deposits must be blocked
+        assertEq(strategy.availableDepositLimit(user), 0, "available deposit limit");
+        vm.expectRevert("ERC4626: deposit more than max");
+        vm.prank(user);
+        strategy.deposit(1, user);
 
-        // Check debt, collateral and LTV balances after SL
-        assertEq(balanceOfDebtAfterSL_beforeDeposit, debtBeforeSL, "!same debt");
-        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!ltv increased");
-        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!ltv above warning threshold");
+        // SL'd, we still need to close the position
+        (bool trigger,) = strategy.tendTrigger();
+        assertTrue(trigger);
 
-        // Check total assets after SL
-        assertEq(strategy.totalAssets(), totalAssetsBeforeSL, "!totalAssets");
+        // Airdrop dust so we can repay debt fully
+        airdrop(ERC20(borrowToken), address(strategy), 3);
 
-        // Deposit again into strategy, while we are in SL
-        mintAndDepositIntoStrategy(strategy, user, _amount);
+        // Close the position
+        vm.prank(management);
+        strategy.tend();
 
-        // Check debt, collateral and LTV balances after SL and after another deposit
-        assertLt(strategy.balanceOfDebt(), balanceOfDebtAfterSL_beforeDeposit, "!less debt"); // We repay some debt, bc balanceOfCollateral seems lower, as some was converted to crvUSD
-        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000); // ltv should seem fixed now, as we repaid some debt
-
-        // Check total assets after SL and after another deposit
-        assertEq(strategy.totalAssets(), totalAssetsBeforeSL + _amount, "!totalAssets");
+        // Out of SL, deposits are open again
+        assertFalse(isSoftLiquidatable(), "isSoftLiquidatable");
+        assertGt(strategy.availableDepositLimit(user), 0, "!available deposit limit");
     }
 
     function test_getIntoHL(

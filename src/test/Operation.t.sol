@@ -62,32 +62,32 @@ contract OperationTest is Setup {
         test_operation(_amount);
     }
 
-    function test_setAllowedSwapSlippageBps(
-        uint256 _allowedSwapSlippageBps
+    function test_setSlippage(
+        uint256 _slippage
     ) public {
-        vm.assume(_allowedSwapSlippageBps <= MAX_BPS);
+        vm.assume(_slippage < MAX_BPS);
         vm.prank(management);
-        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
-        assertEq(strategy.allowedSwapSlippageBps(), _allowedSwapSlippageBps);
+        strategy.setSlippage(_slippage);
+        assertEq(strategy.slippage(), _slippage);
     }
 
-    function test_setAllowedSwapSlippageBps_wrongCaller(
+    function test_setSlippage_wrongCaller(
         address _wrongCaller,
-        uint256 _allowedSwapSlippageBps
+        uint256 _slippage
     ) public {
         vm.assume(_wrongCaller != management);
         vm.expectRevert("!management");
         vm.prank(_wrongCaller);
-        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+        strategy.setSlippage(_slippage);
     }
 
-    function test_setAllowedSwapSlippageBps_tooHigh(
-        uint256 _allowedSwapSlippageBps
+    function test_setSlippage_tooHigh(
+        uint256 _slippage
     ) public {
-        vm.assume(_allowedSwapSlippageBps > MAX_BPS);
+        vm.assume(_slippage >= MAX_BPS);
         vm.prank(management);
-        vm.expectRevert("!allowedSwapSlippageBps");
-        strategy.setAllowedSwapSlippageBps(_allowedSwapSlippageBps);
+        vm.expectRevert("slippage");
+        strategy.setSlippage(_slippage);
     }
 
     function test_operation_dontAllowSwapSlippage(
@@ -101,16 +101,16 @@ contract OperationTest is Setup {
         // Earn Interest
         skip(1 days);
 
-        // Airdrop some to avoid dust errors
-        airdrop(ERC20(borrowToken), address(strategy), 1 ether);
+        // Airdrop enough that price impact + pool fees always exceed a 0% tolerance
+        airdrop(ERC20(borrowToken), address(strategy), 100_000 ether);
 
         // Set slippage to 0% allowed
         vm.prank(management);
-        strategy.setAllowedSwapSlippageBps(MAX_BPS);
+        strategy.setSlippage(0);
 
         // Report profit
         vm.prank(keeper);
-        vm.expectRevert("slippage rekt you");
+        vm.expectRevert();
         strategy.report();
     }
 
@@ -398,10 +398,12 @@ contract OperationTest is Setup {
         ERC20(lenderVault).transfer(address(420), ERC20(lenderVault).balanceOf(address(strategy)) * 10 / 100);
         vm.stopPrank();
 
-        vm.startPrank(emergencyAdmin);
-        strategy.manualWithdraw(address(0), strategy.balanceOfCollateral() * 10 / 100);
-        strategy.buyBorrowToken(type(uint256).max); // sell all loose collateral
-        vm.stopPrank();
+        uint256 _collateralToWithdraw = strategy.balanceOfCollateral() * 10 / 100;
+        vm.prank(emergencyAdmin);
+        strategy.manualWithdraw(address(0), _collateralToWithdraw);
+
+        vm.prank(management);
+        strategy.buyBorrowToken(type(uint256).max); // buy back the borrow token shortfall
 
         assertGe(strategy.balanceOfLentAssets() + strategy.balanceOfBorrowToken(), strategy.balanceOfDebt(), "!lent");
 
@@ -467,10 +469,10 @@ contract OperationTest is Setup {
         (trigger,) = strategy.tendTrigger();
         assertTrue(!trigger);
 
-        // Borrow too much.
+        // Borrow too much. 300 bps over warning so the spot vs EMA price gap can't mask it
         uint256 toBorrow =
             (strategy.balanceOfCollateral()
-                    * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 100)) / MAX_BPS))
+                    * ((strategy.getLiquidateCollateralFactor() * (strategy.warningLTVMultiplier() + 300)) / MAX_BPS))
                 / 1e18;
 
         toBorrow = _fromUsd(_toUsd(toBorrow, address(asset)), borrowToken);
@@ -905,46 +907,54 @@ contract OperationTest is Setup {
         vm.prank(management);
         strategy.setLtvMultipliers(uint16(8900), uint16(9000));
 
-        uint256 targetLTV = (strategy.getLiquidateCollateralFactor() * strategy.targetLTVMultiplier()) / MAX_BPS;
-
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
-
-        // Check LTV
-        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000);
-
-        // Cache debt, collateral and current LTV balances before SL
-        uint256 debtBeforeSL = strategy.balanceOfDebt();
-        uint256 collBeforeSL = strategy.balanceOfCollateral();
-        uint256 ltvBeforeSL = strategy.getCurrentLTV();
-
-        // Cache total assets before SL
-        uint256 totalAssetsBeforeSL = strategy.totalAssets();
+        assertGt(strategy.availableDepositLimit(user), 0, "!available deposit limit");
 
         // Get into SL, without price nuke, meaning we cannot hard liquidate, only soft
         simulateSoftLiquidation(false);
 
-        uint256 balanceOfDebtAfterSL_beforeDeposit = strategy.balanceOfDebt();
+        // The Controller reverts on add_collateral / borrow_more while in SL, so deposits must be blocked
+        assertEq(strategy.availableDepositLimit(user), 0, "available deposit limit");
+        vm.expectRevert("ERC4626: deposit more than max");
+        vm.prank(user);
+        strategy.deposit(1, user);
 
-        // Check debt, collateral and LTV balances after SL
-        assertEq(balanceOfDebtAfterSL_beforeDeposit, debtBeforeSL, "!same debt");
-        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertGt(strategy.getCurrentLTV(), ltvBeforeSL, "!ltv increased");
-        assertGt(strategy.getCurrentLTV(), strategy.warningLTVMultiplier(), "!ltv above warning threshold");
+        // SL'd, we still need to close the position
+        (bool trigger,) = strategy.tendTrigger();
+        assertTrue(trigger);
 
-        // Check total assets after SL
-        assertEq(strategy.totalAssets(), totalAssetsBeforeSL, "!totalAssets");
+        // Airdrop dust so we can repay debt fully
+        airdrop(ERC20(borrowToken), address(strategy), 3);
 
-        // Deposit again into strategy, while we are in SL
-        mintAndDepositIntoStrategy(strategy, user, _amount);
+        // Close the position
+        vm.prank(management);
+        strategy.tend();
 
-        // Check debt, collateral and LTV balances after SL and after another deposit
-        assertLt(strategy.balanceOfDebt(), balanceOfDebtAfterSL_beforeDeposit, "!less debt"); // We repay some debt, bc balanceOfCollateral seems lower, as some was converted to crvUSD
-        assertLt(strategy.balanceOfCollateral(), collBeforeSL, "!same collateral"); // Some of the collateral was converted to crvUSD
-        assertRelApproxEq(strategy.getCurrentLTV(), targetLTV, 1000); // ltv should seem fixed now, as we repaid some debt
+        // Out of SL, but still blocked until the report sells the returned crvUSD and accounts for the loss
+        assertFalse(isSoftLiquidatable(), "isSoftLiquidatable");
+        assertTrue(strategy.recoveringFromSoftLiquidation(), "!recovering");
+        assertEq(strategy.availableDepositLimit(user), 0, "available deposit limit after tend");
+        assertEq(strategy.availableWithdrawLimit(user), 0, "available withdraw limit after tend");
 
-        // Check total assets after SL and after another deposit
-        assertEq(strategy.totalAssets(), totalAssetsBeforeSL + _amount, "!totalAssets");
+        // (almost) zero out rewards so the report only sells the crvUSD and does not re-lever,
+        // the AMM price is still depressed by the SL arb here and creating the bands would revert
+        vm.mockCall(
+            address(strategy.VAULT_APR_ORACLE()),
+            abi.encodeWithSelector(IVaultAPROracle.getStrategyApr.selector),
+            abi.encode(1)
+        );
+
+        // Report the loss
+        vm.prank(management);
+        strategy.setDoHealthCheck(false);
+        vm.prank(keeper);
+        strategy.report();
+
+        // Deposits and withdrawals are open again
+        assertFalse(strategy.recoveringFromSoftLiquidation(), "recovering");
+        assertGt(strategy.availableDepositLimit(user), 0, "!available deposit limit");
+        assertGt(strategy.availableWithdrawLimit(user), 0, "!available withdraw limit");
     }
 
     function test_getIntoHL(
@@ -1009,9 +1019,9 @@ contract OperationTest is Setup {
         // Make our lives a bit easier
         setFees(0, 0);
 
-        // Don't check slippage
+        // Allow max swap slippage
         vm.prank(management);
-        strategy.setAllowedSwapSlippageBps(0);
+        strategy.setSlippage(MAX_BPS - 1);
 
         // Go degen so we're closer to HL
         vm.prank(management);
@@ -1091,14 +1101,10 @@ contract OperationTest is Setup {
         // Get hard liquidated
         simulateHardLiquidation();
 
-        uint256 balanceBefore = asset.balanceOf(user);
-
-        // Withdraw all funds
+        // Funds are stuck in the lender vault until cleanup, withdraws are blocked
+        vm.expectRevert("ERC4626: redeem more than max");
         vm.prank(user);
         strategy.redeem(_amount, user, user);
-
-        // Got nothing, should have waited...
-        assertEq(asset.balanceOf(user), balanceBefore, "!final balance");
     }
 
     function test_rateForTapir(

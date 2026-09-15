@@ -8,9 +8,6 @@ import {IVaultAPROracle} from "../src/interfaces/IVaultAPROracle.sol";
 import {IExchange} from "../src/interfaces/IExchange.sol";
 
 import {StrategyAprOracle} from "../src/periphery/StrategyAprOracle.sol";
-import {WETHToCRVUSDExchange as Exchange} from "../src/periphery/WETHToCRVUSDExchange.sol";
-// import {WBTCToCRVUSDExchange as Exchange} from "../src/periphery/WBTCToCRVUSDExchange.sol";
-// import {WSTETHToCRVUSDExchange as Exchange} from "../src/periphery/WSTETHToCRVUSDExchange.sol";
 
 import {CurveLenderBorrowerStrategy as Strategy} from "../src/Strategy.sol";
 
@@ -36,6 +33,7 @@ contract Deploy is Script {
     address public constant ACCOUNTANT = 0x5A74Cb32D36f2f517DB6f7b0A0591e09b22cDE69; // SMS mainnet accountant
     address public constant DEPLOYER = 0x285E3b1E82f74A99D07D2aD25e159E75382bB43B; // johnnyonline.eth
     address public constant STRATEGY_APR_ORACLE = 0x0E40eb56626cFD0f41CA7A72618209D958561e65;
+    address public constant EXCHANGE = 0x3E7A91F87c1b6C9D8FA806235fd69Aa0D7577caA; // MetaExchange
 
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
@@ -72,7 +70,7 @@ contract Deploy is Script {
         vm.startBroadcast(_pk);
 
         // deploy
-        s_exchange = IExchange(address(new Exchange()));
+        s_exchange = IExchange(EXCHANGE);
         // s_oracle = new StrategyAprOracle();
         s_newStrategy = IStrategyInterface(address(new Strategy(s_asset, s_lenderVault, address(s_exchange), _name)));
 

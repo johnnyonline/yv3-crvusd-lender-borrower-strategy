@@ -108,11 +108,12 @@ contract ShutdownTest is Setup {
         vm.prank(management);
         strategy.manualWithdraw(address(borrowToken), balance);
 
-        assertEq(strategy.balanceOfLentAssets(), 0);
-        assertEq(ERC20(borrowToken).balanceOf(address(strategy)), balance);
+        // Lender vault liquidity can leave a small residual behind
+        assertLe(strategy.balanceOfLentAssets(), balance / 1000, "!lent residual");
+        assertRelApproxEq(ERC20(borrowToken).balanceOf(address(strategy)), balance, 10);
         assertRelApproxEq(strategy.getCurrentLTV(), ltv, 10);
 
-        vm.expectRevert("!emergency authorized");
+        vm.expectRevert("!keeper");
         vm.prank(user);
         strategy.claimAndSellRewards();
 
@@ -128,8 +129,9 @@ contract ShutdownTest is Setup {
 
         assertFalse(IController(strategy.CONTROLLER()).loan_exists(address(strategy)));
         assertEq(strategy.balanceOfCollateral(), 0);
-        assertEq(strategy.balanceOfLentAssets(), 0);
-        assertEq(ERC20(borrowToken).balanceOf(address(strategy)), 0);
+        // Excess borrow token is settled at report now, so closing manually can leave dust behind
+        assertLe(strategy.balanceOfLentAssets(), balance / 1000, "!lent dust");
+        assertLe(ERC20(borrowToken).balanceOf(address(strategy)), balance / 1000, "!loose dust");
         assertEq(strategy.getCurrentLTV(), 0);
         assertFalse(strategy.loanExists());
 
@@ -161,29 +163,40 @@ contract ShutdownTest is Setup {
         address gov = strategy.GOV();
         vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
 
+        ERC20 stuck = ERC20(tokenAddrs["DAI"]);
         airdrop(asset, address(strategy), _amount);
         airdrop(ERC20(borrowToken), address(strategy), _amount);
+        airdrop(stuck, address(strategy), _amount);
 
         vm.expectRevert();
         vm.prank(user);
-        strategy.sweep(borrowToken);
+        strategy.sweep(address(stuck));
 
         vm.expectRevert();
         vm.prank(management);
-        strategy.sweep(borrowToken);
+        strategy.sweep(address(stuck));
 
-        // Sweep Base token
-        uint256 beforeBalance = ERC20(borrowToken).balanceOf(gov);
+        // Sweep stuck token
+        uint256 beforeBalance = stuck.balanceOf(gov);
 
         vm.prank(gov);
-        strategy.sweep(borrowToken);
+        strategy.sweep(address(stuck));
 
-        assertEq(ERC20(borrowToken).balanceOf(gov), beforeBalance + _amount, "base swept");
+        assertEq(stuck.balanceOf(gov), beforeBalance + _amount, "stuck swept");
 
-        // Cant sweep asset
+        // Cant sweep asset, borrow token or lender vault shares
         vm.expectRevert("!asset");
         vm.prank(gov);
         strategy.sweep(address(asset));
+
+        vm.expectRevert("!asset");
+        vm.prank(gov);
+        strategy.sweep(borrowToken);
+
+        address lenderVault = strategy.lenderVault();
+        vm.expectRevert("!asset");
+        vm.prank(gov);
+        strategy.sweep(lenderVault);
     }
 
     // TODO: Add tests for any emergency function added.

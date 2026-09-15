@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.23;
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-
-import {IExchange} from "./interfaces/IExchange.sol";
 import {IVaultAPROracle} from "./interfaces/IVaultAPROracle.sol";
 import {IAMM, IController, IControllerFactory} from "./interfaces/IControllerFactory.sol";
 
@@ -17,10 +14,6 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // Storage
     // ===============================================================
 
-    /// @notice Allowed slippage (in basis points) when swapping tokens
-    /// @dev Initialized to `9_500` (5%) in the constructor
-    uint256 public allowedSwapSlippageBps;
-
     /// @notice Indicates if a loan was created or should be created
     bool public loanExists;
 
@@ -29,6 +22,10 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
 
     /// @notice If true, `getNetRewardApr()` will always return 0
     bool public ignoreRewardApr;
+
+    /// @notice If true, the loan was closed while in soft liquidation and the crvUSD the Controller
+    ///         returned is not yet sold and accounted for. Blocks deposits and withdrawals until the next report
+    bool public recoveringFromSoftLiquidation;
 
     // ===============================================================
     // Constants
@@ -46,23 +43,11 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     /// @notice The difference in decimals between the AMM price oracle (1e18) and our price (1e8)
     uint256 private constant DECIMALS_DIFF = 1e10;
 
-    /// @notice The price precision used when converting between asset and borrow token
-    uint256 private constant SCALED_PRICE_PRECISION = 1e36;
-
-    /// @notice The precision of the `getPrice` function
-    uint256 private constant GET_PRICE_PRECISION = 1e8;
-
-    /// @notice The scale applied to the `getPrice` function when converting between asset and borrow token
-    uint256 private immutable GET_PRICE_SCALE_FACTOR; // 10^(36 + borrow_decimals - asset_decimals)
-
     /// @notice The number of seconds in a year
     uint256 private constant SECONDS_IN_YEAR = 365 days;
 
     /// @notice The governance address
     address public constant GOV = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
-
-    /// @notice The exchange contract for buying/selling the borrow token
-    IExchange public immutable EXCHANGE;
 
     /// @notice The AMM contract
     IAMM public immutable AMM;
@@ -91,40 +76,19 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         address _lenderVault,
         address _exchange,
         string memory _name
-    ) BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault) {
-        EXCHANGE = IExchange(_exchange);
-        require(EXCHANGE.BORROW() == borrowToken && EXCHANGE.COLLATERAL() == address(asset), "!exchange");
-
+    ) BaseLenderBorrower(_asset, _name, CONTROLLER_FACTORY.stablecoin(), _lenderVault, _exchange) {
         AMM = CONTROLLER_FACTORY.get_amm(_asset);
         CONTROLLER = CONTROLLER_FACTORY.get_controller(_asset);
 
         A = AMM.A();
 
-        GET_PRICE_SCALE_FACTOR = 10 ** (36 + IERC20Metadata(borrowToken).decimals() - IERC20Metadata(_asset).decimals());
-
-        allowedSwapSlippageBps = 9500; // 5%
-
         asset.forceApprove(address(CONTROLLER), type(uint256).max);
-        asset.forceApprove(address(EXCHANGE), type(uint256).max);
-
-        ERC20 _borrowToken = ERC20(borrowToken);
-        _borrowToken.forceApprove(address(CONTROLLER), type(uint256).max);
-        _borrowToken.forceApprove(address(EXCHANGE), type(uint256).max);
+        ERC20(borrowToken).forceApprove(address(CONTROLLER), type(uint256).max);
     }
 
     // ===============================================================
     // Management functions
     // ===============================================================
-
-    /// @notice Set the allowed swap slippage (in basis points)
-    /// @dev E.g., 9_500 = 5% slippage allowed
-    /// @param _allowedSwapSlippageBps The allowed swap slippage
-    function setAllowedSwapSlippageBps(
-        uint256 _allowedSwapSlippageBps
-    ) external onlyManagement {
-        require(_allowedSwapSlippageBps <= MAX_BPS, "!allowedSwapSlippageBps");
-        allowedSwapSlippageBps = _allowedSwapSlippageBps;
-    }
 
     /// @notice Set the loanExists flag to false
     function resetLoanExists() external onlyManagement {
@@ -225,7 +189,9 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     function availableWithdrawLimit(
         address _owner
     ) public view override returns (uint256) {
-        return _isInSoftLiquidation() ? 0 : BaseLenderBorrower.availableWithdrawLimit(_owner);
+        // Blocked while in soft liquidation and until the report that accounts for its loss
+        if (_isInSoftLiquidation() || recoveringFromSoftLiquidation) return 0;
+        return BaseLenderBorrower.availableWithdrawLimit(_owner);
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -258,13 +224,17 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _maxCollateralDeposit() internal pure override returns (uint256) {
+    function _maxCollateralDeposit() internal view override returns (uint256) {
+        // The Controller reverts on adding collateral while in soft liquidation,
+        // and after unwinding we wait for the report that accounts for its loss
+        if (_isInSoftLiquidation() || recoveringFromSoftLiquidation) return 0;
         return type(uint256).max;
     }
 
     /// @inheritdoc BaseLenderBorrower
     function _maxBorrowAmount() internal view override returns (uint256) {
-        return ERC20(borrowToken).balanceOf(address(CONTROLLER));
+        // The Controller reverts on borrowing more while in soft liquidation
+        return _isInSoftLiquidation() ? 0 : ERC20(borrowToken).balanceOf(address(CONTROLLER));
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -301,10 +271,22 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     // ===============================================================
 
     /// @inheritdoc BaseLenderBorrower
+    function _harvestAndReport() internal override returns (uint256) {
+        // The report sells the crvUSD the Controller returned and accounts for the soft liquidation loss
+        recoveringFromSoftLiquidation = false;
+        return BaseLenderBorrower._harvestAndReport();
+    }
+
+    /// @inheritdoc BaseLenderBorrower
     function _tend(
         uint256 _totalIdle
     ) internal override {
-        _isInSoftLiquidation() ? _liquidatePosition(balanceOfCollateral()) : BaseLenderBorrower._tend(_totalIdle);
+        if (!_isInSoftLiquidation()) return BaseLenderBorrower._tend(_totalIdle);
+
+        // Close the loan. The Controller returns the remaining collateral and the crvUSD it converted,
+        // which is only sold and accounted for on the next report
+        _liquidatePosition(balanceOfCollateral());
+        recoveringFromSoftLiquidation = true;
     }
 
     /// @inheritdoc BaseLenderBorrower
@@ -313,68 +295,8 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
     }
 
     /// @inheritdoc BaseLenderBorrower
-    function _claimAndSellRewards() internal override {
-        uint256 _loose = balanceOfBorrowToken();
-        uint256 _have = balanceOfLentAssets() + _loose;
-        uint256 _owe = balanceOfDebt();
-        if (_owe >= _have) return;
-
-        uint256 _toSell = _have - _owe;
-        if (_toSell > _loose) _withdrawBorrowToken(_toSell - _loose);
-
-        _loose = balanceOfBorrowToken();
-
-        _sellBorrowToken(_toSell > _loose ? _loose : _toSell);
-    }
-
-    /// @inheritdoc BaseLenderBorrower
-    function _sellBorrowToken(
-        uint256 _amount
-    ) internal virtual override {
-        // Scale price to 1e36
-        uint256 _scaledPrice = _getPrice(address(asset)) * GET_PRICE_SCALE_FACTOR / GET_PRICE_PRECISION;
-
-        // Calculate the expected amount of collateral out in collateral token precision
-        uint256 _expectedAmountOut = _amount * SCALED_PRICE_PRECISION / _scaledPrice;
-
-        // Apply slippage tolerance
-        uint256 _minAmountOut = _expectedAmountOut * allowedSwapSlippageBps / MAX_BPS;
-
-        // Swap away
-        EXCHANGE.swap(
-            _amount,
-            _minAmountOut, // minAmount
-            true // fromBorrow
-        );
-    }
-
-    /// @inheritdoc BaseLenderBorrower
-    function _buyBorrowToken() internal virtual override {
-        uint256 _borrowTokenStillOwed = borrowTokenOwedBalance();
-        uint256 _maxAssetBalance = _fromUsd(_toUsd(_borrowTokenStillOwed, borrowToken), address(asset));
-        _buyBorrowToken(_maxAssetBalance);
-    }
-
-    /// @notice Buy borrow token
-    /// @param _amount The amount of asset to sale
-    function _buyBorrowToken(
-        uint256 _amount
-    ) internal {
-        // Scale price to 1e36
-        uint256 _scaledPrice = _getPrice(address(asset)) * GET_PRICE_SCALE_FACTOR / GET_PRICE_PRECISION;
-
-        // Calculate the expected amount of borrow token out
-        uint256 _expectedAmountOut = _amount * _scaledPrice / SCALED_PRICE_PRECISION;
-
-        // Apply slippage tolerance
-        uint256 _minAmountOut = _expectedAmountOut * allowedSwapSlippageBps / MAX_BPS;
-
-        // Swap away
-        EXCHANGE.swap(
-            _amount,
-            _minAmountOut, // minAmount
-            false // fromBorrow
-        );
+    function _claimAndSellRewards() internal pure override {
+        return;
     }
 
     /// @notice Sweep of non-asset ERC20 tokens to governance
@@ -383,18 +305,8 @@ contract CurveLenderBorrowerStrategy is BaseLenderBorrower {
         ERC20 _token
     ) external {
         require(msg.sender == GOV, "!gov");
-        require(_token != asset, "!asset");
+        require(_token != asset && address(_token) != borrowToken && address(_token) != address(lenderVault), "!asset");
         _token.safeTransfer(GOV, _token.balanceOf(address(this)));
-    }
-
-    /// @notice Manually buy borrow token
-    /// @dev Potentially can never reach `_buyBorrowToken()` in `_liquidatePosition()`
-    ///      because of lender vault accounting (i.e. `balanceOfLentAssets() == 0` is never true)
-    function buyBorrowToken(
-        uint256 _amount
-    ) external onlyEmergencyAuthorized {
-        if (_amount == type(uint256).max) _amount = balanceOfAsset();
-        _buyBorrowToken(_amount);
     }
 
 }

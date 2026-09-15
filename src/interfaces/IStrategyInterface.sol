@@ -6,9 +6,9 @@ import {ILenderBorrower} from "./ILenderBorrower.sol";
 
 interface IStrategyInterface is IStrategy, ILenderBorrower {
 
-    function allowedSwapSlippageBps() external view returns (uint256);
     function loanExists() external view returns (bool);
     function ignoreBorrowApr() external view returns (bool);
+    function recoveringFromSoftLiquidation() external view returns (bool);
     function ignoreRewardApr() external view returns (bool);
     function EXCHANGE() external view returns (address);
     function AMM() external view returns (address);
@@ -16,10 +16,14 @@ interface IStrategyInterface is IStrategy, ILenderBorrower {
     function CONTROLLER_FACTORY() external view returns (address);
     function VAULT_APR_ORACLE() external view returns (address);
     function GOV() external view returns (address);
-    function setAllowedSwapSlippageBps(
-        uint256 _allowedSwapSlippageBps
-    ) external;
     function resetLoanExists() external;
+    function allowed(
+        address _depositor
+    ) external view returns (bool);
+    function setAllowed(
+        address _depositor,
+        bool _allowed
+    ) external;
     function setIgnoreBorrowApr(
         bool _ignoreBorrowApr
     ) external;

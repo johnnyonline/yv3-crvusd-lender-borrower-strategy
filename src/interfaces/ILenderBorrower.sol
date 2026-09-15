@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.23;
 
 import {IBaseHealthCheck} from "@periphery/Bases/HealthCheck/IBaseHealthCheck.sol";
@@ -21,6 +21,8 @@ interface ILenderBorrower is IBaseHealthCheck {
     function maxGasPriceToTend() external view returns (uint256);
 
     function slippage() external view returns (uint256);
+
+    function minAmountToBorrow() external view returns (uint256);
 
     // External Functions
     function setDepositLimit(
